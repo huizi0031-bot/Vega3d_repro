@@ -32,6 +32,7 @@ This work explores a different direction: instead of adding explicit 3D supervis
 
 ## 📣 News
 
+- `2026.06.18`: 🎉 VEGA-3D has been accepted to **ECCV 2026**!
 - `2026.03.25`: Released the training, evaluation code, and checkpoints for [spatial reasoning](https://github.com/H-EmbodVis/VEGA-3D/tree/spatial-reasoning).
 - `2026.03.20`: Released the paper, training and evaluation code.
 
@@ -172,10 +173,10 @@ We build upon the following great works and open source repositories
 ## 📖 Citation
 If you find this repository useful in your research, please consider giving a star ⭐ and a citation.
 ```bibtex
-@article{wu2026vega,
+@inproceedings{wu2026vega,
       title={Generation Models Know Space: Unleashing Implicit 3D Priors for Scene Understanding},
       author={Xianjin Wu and Dingkang Liang and Tianrui Feng and Kui Xia and Yumeng Zhang and Xiaofan Li and Xiao Tan and Xiang Bai},
-      journal={arXiv preprint arXiv:2603.19235},
+      booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
       year={2026}
 }
 ```
