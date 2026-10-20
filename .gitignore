@@ -1,50 +1,30 @@
-*__pycache__*
-/data/
-/data
-/ckpt/
-/results/
-/wandb/
-<_io.TextIOWrapper name='results/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store
 .vscode/
-extract/
-video_3d_llm.egg-info/
-vega_3d.egg-info/
-core.*
-AGENTS.md
-
-# Runtime artifacts: keep source code/configuration/docs versionable
-/checkpoints/
-/checkpoint/
-/outputs/
-
-
-# Logs, temporary source backups, downloaded tool archives
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 *.log
 *.bak
 *.bak-*
-/*.zip
-/<_io.TextIOWrapper*
-.DS_Store
-
-# Generated Wan2.2 text condition
-/llava/model/multimodal_generative_encoder/wan22_prompt_embedding.pt
-
-# Personal GitHub repository: source tools are tracked, runtime artifacts stay local
-/wan_full_smoke_tools/full_training_runs/
-/wan_full_smoke_tools/maintenance/
-/wan_full_smoke_tools/runs/
-/wan_offline_tools/generated/
+core.*
+/data/
+/checkpoints/
+/results/
+/outputs/
 /experiments/
 /logs/
 /models/
 /envs/
 /hf_cache/
 /tmp/
-.env
-.env.*
-!.env.example
-*.pem
-*.key
+/wandb/
+/wan_offline_tools/generated/
+/llava/model/multimodal_generative_encoder/wan22_prompt_embedding.pt
 *.safetensors
 *.ckpt
 *.pth

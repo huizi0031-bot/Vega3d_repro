@@ -31,7 +31,7 @@ def generation_prompt(row, tokenizer, add_spatial=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-path", required=True, help="Saved full VEGA checkpoint")
-    parser.add_argument("--question-file", default="/data/zhdu/vega3d_repro/experiments/scanqa_foresight_pilot_20261020_v1/data/val_original.json")
+    parser.add_argument("--question-file", default="data/scanqa_foresight/val_original.json")
     parser.add_argument("--answer-file", required=True)
     parser.add_argument("--gpu", type=int)
     parser.add_argument("--max-new-tokens", type=int, default=512)

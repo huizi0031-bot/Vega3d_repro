@@ -1,7 +1,4 @@
-"""CPU contract tests: real tiny Qwen3.5/SigLIP, fusion, grounding and reload.
-
-These tests deliberately do not claim a full pretrained-model GPU smoke run.
-"""
+"""CPU integration tests for Qwen3.5, SigLIP, Wan and checkpoint resume."""
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -96,6 +93,20 @@ class VariantTests(unittest.TestCase):
             self.assertTrue(restored.model.vision_tower.is_loaded)
             torch.testing.assert_close(restored.model.vision_tower.vision_tower.vision_model.embeddings.patch_embedding.weight,
                                        loaded.model.vision_tower.vision_tower.vision_model.embeddings.patch_embedding.weight)
+            from llava.model.builder import load_pretrained_model
+            class Tokenizer:
+                def __len__(self):
+                    return loaded.get_input_embeddings().weight.shape[0]
+                def add_tokens(self, *args, **kwargs):
+                    return 0
+            with patch('llava.model.builder.AutoTokenizer.from_pretrained', return_value=Tokenizer()):
+                _, inference, processor, _ = load_pretrained_model(
+                    str(trained), None, 'qwen35-test', device_map={'':'cpu'},
+                    torch_dtype='float32', attn_implementation='eager')
+            self.assertIsNotNone(processor)
+            self.assertIsNone(inference.__dict__['_foresight_teacher_runtime'])
+            torch.testing.assert_close(inference.model.vision_tower.vision_tower.vision_model.embeddings.patch_embedding.weight,
+                                       loaded.model.vision_tower.vision_tower.vision_model.embeddings.patch_embedding.weight)
 
     def test_native_chat_template_supervision_if_tokenizer_available(self):
         directory = os.environ.get('QWEN35_TEST_TOKENIZER')
@@ -119,7 +130,7 @@ class VariantTests(unittest.TestCase):
         from llava.train.train_3d import TrainingArguments
         from llava.train.llava_trainer import LLaVATrainer
         from transformers import Trainer
-        from wan_offline_tools.configure_wan_offline import install_final_checkpoint
+        from wan_offline_tools.train_entry import install_final_checkpoint
         class Data(torch.utils.data.Dataset):
             task_lengths = [(i%3,6) for i in range(20)]
             def __len__(self): return 20
@@ -129,6 +140,7 @@ class VariantTests(unittest.TestCase):
         def collate(rows):
             return {key:torch.stack([row[key] for row in rows]) for key in rows[0]}
         previous = Trainer.train
+        previous_save = Trainer._save_checkpoint
         install_final_checkpoint(Trainer)
         try:
             with tempfile.TemporaryDirectory() as directory:
@@ -143,19 +155,24 @@ class VariantTests(unittest.TestCase):
                 trainer = LLaVATrainer(model=LlavaQwen35ForCausalLM(tiny_config()),
                     args=arguments(1), train_dataset=Data(), data_collator=collate)
                 self.assertFalse(trainer.model_accepts_loss_kwargs)
-                trainer.train()
+                with patch.object(trainer, '_save_checkpoint', wraps=trainer._save_checkpoint) as saved:
+                    trainer.train()
+                    self.assertEqual(saved.call_count, 1)
                 checkpoint = Path(directory)/'checkpoint-1'
                 self.assertTrue((checkpoint/'optimizer.pt').is_file())
                 self.assertTrue((checkpoint/'rng_state.pth').is_file())
                 trainer = LLaVATrainer(model=LlavaQwen35ForCausalLM(tiny_config()),
                     args=arguments(2), train_dataset=Data(), data_collator=collate)
-                trainer.train(resume_from_checkpoint=str(checkpoint))
+                with patch.object(trainer, '_save_checkpoint', wraps=trainer._save_checkpoint) as saved:
+                    trainer.train(resume_from_checkpoint=str(checkpoint))
+                    self.assertEqual(saved.call_count, 1)
                 self.assertEqual(trainer.state.global_step, 2)
                 self.assertTrue((Path(directory)/'checkpoint-2/optimizer.pt').is_file())
                 self.assertTrue(all(torch.isfinite(torch.tensor(row['loss']))
                                     for row in trainer.state.log_history if 'loss' in row))
         finally:
             Trainer.train = previous
+            Trainer._save_checkpoint = previous_save
 
     def test_language_loss_backward_generation_and_reload(self):
         torch.manual_seed(7)

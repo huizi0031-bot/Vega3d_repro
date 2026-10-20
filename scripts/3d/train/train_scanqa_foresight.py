@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preview by default. Only --execute launches training, on user-selected GPUs."""
+"""ScanQA E00/E01/E03 launcher with CPU checks and experiment records."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import socket
 import subprocess
 import sys
 
@@ -24,6 +25,28 @@ def read_rows(path):
 
 def file_digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def resolve_config_paths(config):
+    for section, key in [("data", "root"), ("training", "output_root")]:
+        path = Path(os.path.expandvars(config[section][key])).expanduser()
+        config[section][key] = str(path if path.is_absolute() else REPO/path)
+    return config
+
+
+def check_weight_files(directory, prefix="model"):
+    """Check model shards without loading weight tensors."""
+    index = directory/f"{prefix}.safetensors.index.json"
+    if index.is_file():
+        shards = set(json.loads(index.read_text())["weight_map"].values())
+        if not shards:
+            raise ValueError(f"Empty model index: {index}")
+        files = [directory/name for name in shards]
+    else:
+        files = [directory/f"{prefix}.safetensors"]
+    for path in files:
+        if not path.is_file() or path.stat().st_size == 0:
+            raise FileNotFoundError(f"Missing or empty model weights: {path}")
 
 
 def preflight(config, experiment):
@@ -49,6 +72,19 @@ def preflight(config, experiment):
     for name in [model["initial_checkpoint"], model["vision_checkpoint"], model["wan_checkpoint"]]:
         if not (REPO/name/"config.json").is_file():
             raise FileNotFoundError(name)
+    check_weight_files(REPO/model["initial_checkpoint"])
+    check_weight_files(REPO/model["vision_checkpoint"])
+    check_weight_files(REPO/model["wan_checkpoint"], "diffusion_pytorch_model")
+    for name in ["tokenizer.json", "tokenizer_config.json"]:
+        if not (REPO/model["initial_checkpoint"]/name).is_file():
+            raise FileNotFoundError(REPO/model["initial_checkpoint"]/name)
+    for split in ["train", "val", "test"]:
+        path = REPO/"data/embodiedscan"/f"embodiedscan_infos_{split}.pkl"
+        if not path.is_file():
+            raise FileNotFoundError(path)
+    for name in ["scannet_train_gt_box.json", "scannet_val_pred_box.json"]:
+        if not (REPO/"data/metadata"/name).is_file():
+            raise FileNotFoundError(REPO/"data/metadata"/name)
     language = json.loads((REPO/model["initial_checkpoint"]/"config.json").read_text())
     wan = json.loads((REPO/model["wan_checkpoint"]/"config.json").read_text())
     if language.get("model_type") not in {"qwen3_5_text","llava_qwen35"} or language.get("hidden_size") != model["language_hidden_size"]:
@@ -61,19 +97,35 @@ def preflight(config, experiment):
     if h % 32 or w % 32 or f < 5 or (f-1) % 4 or not 1 <= model["queries"] <= 512:
         raise ValueError("Invalid teacher resolution/frame count or query count")
     # Inspect each distinct clip once. Full pair/actual-sampling checks run again in the loader.
-    clips = {}
+    clips, observed_by_scene, observation_files = {}, {}, set()
     for row in pairs:
         pair = row["foresight"]
         observed = [os.path.normpath(x) for x in pair["observed_frames"]]
         clip = pair["teacher_clip_frames"]
         if (pair["video"] != row["video"] or len(observed) != data["frame_count"]
-                or len(clip) != f or clip[0] not in observed
+                or len(set(observed)) != len(observed) or len(set(clip)) != f
+                or len(clip) != f or clip[0] != pair["anchor_frame"] or clip[0] not in observed
                 or set(clip[1:]) & set(observed) or clip[1:] != pair["heldout_target_frames"]
                 or pair["target_mode"] != "heldout_view_clip_prediction_not_strict_future"):
             raise ValueError("Invalid or leaking teacher pair")
         if row["video"] in clips and clips[row["video"]] != clip:
             raise ValueError("Pilot expects one recorded teacher clip per scene")
+        if row["video"] in observed_by_scene and observed_by_scene[row["video"]] != observed:
+            raise ValueError("Observation frames differ between questions from the same scene")
         clips[row["video"]] = clip
+        if row["video"] not in observed_by_scene:
+            observed_by_scene[row["video"]] = observed
+            ids = [int(Path(p).stem) for p in clip]
+            if any(b-a != 10 for a, b in zip(ids, ids[1:])):
+                raise ValueError("Teacher frame IDs must follow the recorded ScanNet stride of 10")
+            observation_files.add(Path(observed[0]).parent/"intrinsic.txt")
+            for name in observed:
+                path = Path(name)
+                observation_files.update([path, path.with_suffix(".png"), path.with_suffix(".txt")])
+            observation_files.update(Path(name).with_suffix(".txt") for name in clip)
+    for path in sorted(observation_files):
+        if not (REPO/path).is_file():
+            raise FileNotFoundError(f"Missing observation/depth/camera asset: {path}")
     from PIL import Image
     for clip in clips.values():
         for name in clip:
@@ -83,6 +135,7 @@ def preflight(config, experiment):
     return {"train_rows": len(originals), "train_scenes": len(train_scenes),
             "validation_rows": len(validation), "validation_scenes": len(val_scenes),
             "distinct_teacher_clips": len(clips), "train_path": str(train_path),
+            "checked_observation_files": len(observation_files),
             "architecture": {"language_hidden":language["hidden_size"],"language_layers":language["num_hidden_layers"],
                              "wan_hidden":wan["dim"],"wan_layers":wan["num_layers"],"wan_heads":wan["num_heads"]},
             "validation_missing_feature_scenes": [s for s in sorted(val_scenes) if not cache(s).is_file()],
@@ -182,6 +235,7 @@ def main():
     parser.add_argument("--gpus", help="Required only with --execute, e.g. 0,1")
     parser.add_argument("--run-name")
     parser.add_argument("--max-steps", type=int)
+    parser.add_argument("--master-port", type=int, help="Optional local single-node rendezvous port")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--check-data", action="store_true", help="Read-only data and asset preflight")
     parser.add_argument("--check-loader", action="store_true", help="Read one actual QA/teacher batch on CPU; never train")
@@ -192,7 +246,10 @@ def main():
     config = yaml.safe_load(config_path.read_text())
     if config["schema_version"] != 1:
         raise ValueError("Unsupported configuration schema")
+    config = resolve_config_paths(config)
     experiment = config["experiments"][cli.experiment]
+    if cli.execute and (cli.check_data or cli.check_loader):
+        parser.error("Run --check-data/--check-loader separately from --execute")
     if cli.gpus and not re.fullmatch(r"[0-9]+(,[0-9]+)*", cli.gpus):
         parser.error("--gpus must be comma-separated integer IDs")
     gpu_ids = cli.gpus.split(",") if cli.gpus else ["UNSELECTED"]
@@ -204,6 +261,14 @@ def main():
         parser.error("--resume requires --run-name")
     if cli.max_steps is not None and cli.max_steps != -1 and cli.max_steps < 1:
         parser.error("--max-steps must be -1 or positive")
+    if cli.master_port is not None and not 1 <= cli.master_port <= 65535:
+        parser.error("--master-port must be between 1 and 65535")
+    if cli.master_port is None:
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            master_port = listener.getsockname()[1]
+    else:
+        master_port = cli.master_port
     run_name = cli.run_name or f"qwen35-foresight-{cli.experiment.lower()}-{datetime.now():%Y%m%d-%H%M%S}"
     if not re.fullmatch(r"qwen35-[A-Za-z0-9_-]+", run_name):
         parser.error("Run name must start with qwen35- and use letters/digits/_/-")
@@ -211,8 +276,12 @@ def main():
     record = output/"foresight_record"
     data_yaml = record/"train.yaml"
     arguments = training_arguments(config, experiment, data_yaml, output, run_name, len(gpu_ids), cli.max_steps)
-    command = [sys.executable, "-m", "torch.distributed.run", "--standalone", f"--nproc_per_node={len(gpu_ids)}",
-               "wan_offline_tools/configure_wan_offline.py", "--train-entry", *arguments]
+    # Numeric hostnames such as 8709 resolve as 0.0.34.5 in elastic rendezvous.
+    # This launcher is single-node, so use an explicit static loopback store.
+    command = [sys.executable, "-m", "torch.distributed.run", "--nnodes=1", "--node_rank=0",
+               "--rdzv_backend=static", "--master_addr=127.0.0.1", f"--master_port={master_port}",
+               f"--nproc_per_node={len(gpu_ids)}",
+               "wan_offline_tools/train_entry.py", *arguments]
     audit = preflight(config, experiment) if cli.check_data or cli.check_loader or cli.execute else None
     if cli.check_loader:
         audit["loader"] = check_loader(config,experiment,audit)

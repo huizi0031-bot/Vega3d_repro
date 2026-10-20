@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a data-only ScanQA pilot without changing the source repository."""
+"""Prepare matched ScanQA QA subsets and heldout-view supervision manifests."""
 import argparse
 import collections
 import datetime
@@ -156,7 +156,7 @@ def main():
     summary = {
         "created_at": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(),
         "project": str(root), "output": str(args.output), "seed": args.seed,
-        "status": "data_only; foresight model/loss/data-loader not implemented by this preparation",
+        "status": "prepared",
         "train_records": len(selected_train), "train_scenes": len(pairs),
         "validation_records": len(selected_val),
         "validation_scenes": len({row["video"] for row in selected_val}),
@@ -191,54 +191,17 @@ def main():
         "datasets:\n  - json_path: " + str(args.output / "train_original.json") +
         '\n    sampling_strategy: "all"\n')
     (args.output / "prepare_scanqa_foresight_pilot.py").write_text(Path(__file__).read_text())
-    readme = """# ScanQA foresight pilot — 2026-10-20
+    readme = """# ScanQA data manifests
 
-## Scope
-Data-only preparation. Existing project code, source annotations, model weights,
-and shared images are unchanged. No model or GPU training is launched.
+- train_original.json: matched baseline QA records.
+- train_paired.jsonl: the same records plus foresight frame-pair metadata.
+- val_original.json: QA records from separate official validation scenes.
+- scene_pairs.json: one observed-anchor/heldout-target plan per training scene.
+- summary.json: source hashes, counts, frame checks and camera thresholds.
 
-The original 32 QA observations are preserved exactly using input-cache metadata.
-Four previously unused RGB frames after an observed anchor form the prediction
-target. The target is a heldout-view clip, not strict future prediction: other QA
-observations may occur later in time. This preserves ScanQA's scene-level QA
-evidence and avoids silently changing the task to partial-observation QA.
-
-## Files
-- train_original.json: unchanged-format ScanQA subset for matched baselines.
-- val_original.json: official-validation QA subset, in separate scenes.
-- train_paired.jsonl: original annotation plus explicit foresight metadata.
-- scene_pairs.json: shared scene-level frame plans, avoiding ambiguity.
-- scanqa_only.yaml: baseline-only configuration pointing to train_original.json.
-- summary.json: counts, source hashes, checks and limitations.
-
-The current training loader ignores the added foresight metadata; this file is
-NOT enough to activate the new objective. A separate loader and model branch
-must explicitly read the target frames and compute the video prediction loss.
-Validation should retain the original QA observation protocol. Its offline Wan
-feature cache is a separate prerequisite; do not silently use training caches.
-
-## Proposed next implementation
-1. E00: same ScanQA rows, original VEGA architecture and observation frames.
-2. E01: append trainable foresight query slots before answers; task loss only.
-3. E03: add projected query outputs as the frozen Wan conditional context;
-   jointly encode the five-frame teacher clip with Wan's native temporal VAE;
-   apply its native conditional flow/denoising objective in addition to QA loss.
-4. Sample noise/time using the actual Wan implementation. Do not re-use the
-   detached single-frame feature-extraction forward for this loss. Preserve
-   gradients to the conditional projection and query-producing network.
-5. Check gradient flow, query use, both losses, memory and clean reload on a
-   short run before deciding full-data scale and optimization settings.
-
-The observed first frame in the teacher clip is an anchor. Whether it is supplied
-as an explicit image condition or its loss is masked is an implementation choice
-to record and test; this data manifest does not implement either convention.
-Spatial resolution, query count, trainable parameters and loss weights remain
-unfixed. Existing 1280x704 single-image extraction settings are not automatically
-an affordable or optimal video-training resolution.
-
-Heuristic camera thresholds (0.5 m, 30 degrees) only select a manageable debugging
-subset. They are not action tolerances, a proposed contribution, or optimized
-hyperparameters. Inspect sample images before interpreting learning curves.
+Targets are heldout views within a globally observed static scan, not strictly
+causal future frames. Keep the original observation-frame order and geometry
+metadata unchanged. Training entry: scripts/3d/train/train_scanqa_foresight.py.
 """
     (args.output / "README.md").write_text(readme)
     print("SUMMARY", json.dumps(summary, ensure_ascii=False, indent=2), flush=True)

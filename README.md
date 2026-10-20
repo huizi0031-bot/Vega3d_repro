@@ -1,195 +1,139 @@
-<!-- personal-repository-guide -->
+# ScanQA Foresight — Qwen3.5 + Wan2.2
 
-> **Qwen3.5/Wan2.2 foresight pilot:** [architecture and configuration](docs/foresight_scanqa.md),
-> [E00/E01/E03 settings](configs/foresight/scanqa_pilot.yaml),
-> [verification status](docs/foresight_verification_20261020.md).
-> Preview is the default; experiment training is only started explicitly by the user.
+基于 VEGA-3D 的空间问答实验。语言骨干为 Qwen3.5-2B，保留 SigLIP、生成式特征融合和 3D 位置编码，在语言序列中加入 32 个 foresight queries，通过冻结 Wan2.2 的视频 flow loss 辅助训练。
 
-> 当前个人实验版本：Qwen3.5-2B-Language + Wan2.2-TI2V-5B。
-> 仓库与服务器同步说明见 [PERSONAL_REPOSITORY.md](PERSONAL_REPOSITORY.md)，模型配置见 [README_QWEN35_WAN22.md](README_QWEN35_WAN22.md)。
-> 以下保留原项目说明与引用。
+当前只保留 ScanQA 的训练、推理、特征补齐和测试入口。实验目标是验证跨视角预测监督能否改善空间问答；尚无完整训练或效果评测结论。
 
-> **Qwen3.5 + Wan2.2 variant:** see [README_QWEN35_WAN22.md](README_QWEN35_WAN22.md) for this directory's model setup and launchers. The original upstream documentation follows.
+## 实验状态
 
-# Generation Models Know Space: Unleashing Implicit 3D Priors for Scene Understanding
+| 项目 | 进展 |
+|---|---|
+| 小规模数据 | 训练 400 条 QA / 20 个场景；验证 100 条 QA / 5 个独立场景 |
+| E03 工程试跑 | 2026-10-20 在 8709 双卡完成 2 个 optimizer steps，正常退出 |
+| 梯度与保存 | QA / video 两项 loss 有限，模型及完整 checkpoint 已保存 |
+| 显存 | 每卡采样峰值约 46.4 GiB，详见试跑记录 |
+| 训练场景特征 | 20 个场景齐备 |
+| 验证场景特征 | 5 个场景待补齐，未运行验证集推理 |
+| E00 / E01 对照 | 尚未训练 |
+| 完整训练与效果 | 尚未完成 |
 
-<div align="center">
-  <a href="https://arxiv.org/abs/2603.19235"><img src="https://img.shields.io/badge/arXiv-2603.19235-b31b1b?logo=Arxiv"></a>
-  <a href="https://h-embodvis.github.io/VEGA-3D/"><img src="https://img.shields.io/badge/Homepage-project-orange.svg?logo=googlehome"></a>
-  <a href="https://huggingface.co/H-EmbodVis/VEGA-3D-Spatial-Reasoning" target="_blank"><img src="https://img.shields.io/badge/HuggingFace-Model(SR)-fcd022?logo=huggingface&logoColor=white"></a>
-  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square"></a>
+架构与损失见 [方法说明](docs/foresight_scanqa.md)，实际数值见 [两步试跑记录](docs/foresight_gpu_smoke_20261020.md)。代码整理与 CPU 检查见 [整理记录](docs/repository_maintenance_20261020.md)。
 
-  <h5 align="center"><em><a href="https://github.com/HyperbolicCurve">Xianjin Wu</a><sup>1</sup>, <a href="https://dk-liang.github.io/">Dingkang Liang</a><sup>1†</sup>, <a href="https://jerryfeng2003.github.io/">Tianrui Feng</a><sup>1</sup>, Kui Xia<sup>2</sup>, Yumeng Zhang<sup>2</sup>, Xiaofan Li<sup>2</sup>, Xiao Tan<sup>2</sup>, <a href="https://scholar.google.com/citations?user=UeltiQ4AAAAJ&hl=en">Xiang Bai</a><sup>1</sup></em></h5>
-  <sup>1</sup> Huazhong University of Science and Technology, <sup>2</sup> Baidu Inc., China，<sup>†</sup> Project Lead
-</div>
+## 环境
 
-<div align="center">
-  <img src="assets/logo.png" alt="VEGA-3D logo" width="320">
-</div>
+当前验证环境为 Python 3.10.18、Torch 2.6.0、Transformers 5.3.0、DeepSpeed 0.16.9、Accelerate 1.12.0、Diffusers 0.30.3。使用 SDPA，不要求安装 flash-attn。
 
-This repository contains the official implementation of **VEGA-3D** for the paper **Generation Models Know Space: Unleashing Implicit 3D Priors for Scene Understanding**.
-
-## 📄 Abstract
-
-While Multimodal Large Language Models demonstrate strong semantic capabilities, they often suffer from spatial blindness and struggle with fine-grained geometric reasoning and physical dynamics. Existing solutions usually depend on explicit 3D modalities or heavy geometric scaffolding, which are costly to scale and often limited by data availability and generalization.
-
-This work explores a different direction: instead of adding explicit 3D supervision, we leverage the implicit spatial prior learned inside large-scale video generation models. We introduce **VEGA-3D** (**V**ideo **E**xtracted **G**enerative **A**wareness), a plug-and-play framework that repurposes a pre-trained video diffusion model as a latent world simulator. By extracting spatiotemporal features from intermediate noise levels and fusing them with semantic representations through token-level adaptive gated fusion, VEGA-3D enriches MLLMs with dense geometric cues for 3D scene understanding, spatial reasoning, and embodied decision making.
-
-## 🔍 Overview
-
-<div align="center">
-  <a href="assets/intro.png">
-    <img src="assets/intro.png" alt="VEGA-3D overview" width="100%">
-  </a>
-</div>
-
-## 📣 News
-
-- `2026.06.18`: 🎉 VEGA-3D has been accepted to **ECCV 2026**!
-- `2026.03.25`: Released the training, evaluation code, and checkpoints for [spatial reasoning](https://github.com/H-EmbodVis/VEGA-3D/tree/spatial-reasoning).
-- `2026.03.20`: Released the paper, training and evaluation code.
-
-## 📈 Performance
-
-<div align="center">
-  <a href="assets/performance.png">
-    <img src="assets/performance.png" alt="VEGA-3D performance" width="100%">
-  </a>
-</div>
-
-## ⚙️ Installation
-
-1. Clone this repository and navigate to the VEGA-3D:
+8709 已有环境：
 
 ```bash
-git clone https://github.com/H-EmbodVis/VEGA-3D.git
-cd VEGA-3D
+source /data/zhdu/vega3d_repro/activate.sh
 ```
-2. Create the conda environment:
+
+新环境按以下版本安装。此安装流程尚未在全新公司环境执行；安装后需先通过下述 CPU 检查。
 
 ```bash
-conda create -n vega3d python=3.10 -y
-conda activate vega3d
-pip install --upgrade pip
-#In our implementation, we choose torch2.4.0+cu121
-pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu121
-pip install -e ".[train]"
-#In our implementation, we choose flash_attn==2.7.4.post1
-pip install flash-attn --no-build-isolation     # install flash attention
+conda create -n scanqa-foresight python=3.10 -y
+conda activate scanqa-foresight
+python -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+python -m pip install -r requirements-scanqa.txt
+python -m pip install torch-scatter==2.1.2+pt26cu124 --only-binary=:all: -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
+python -m pip install -e . --no-deps
 ```
 
-## Dataset/Model Preparation
+`requirements-qwen35.txt` 保留模型核心依赖版本；`requirements-scanqa.txt` 补充数据加载与训练需要的依赖。Torch 和 torch-scatter 的 CUDA 版本需要匹配。
 
-### 1. Dataset preparation
+## 数据和权重
 
-Please download the required datasets from the sources below and organize them following the same directory structure as [Video-3D-LLM](https://huggingface.co/datasets/zd11024/Video-3D-LLM_data). The repository expects a `data/` root following structure:
+Git 只保存代码，不包含数据、权重、离线特征及训练输出。准备以下目录；已有资源可用软链接接入。
 
 ```text
 data/
-├── benchmark/
-├── embodiedscan/
-├── mask/
-├── metadata/
 ├── models/
-├── processed/
+│   ├── Qwen3.5-2B-Language/           # 导出的语言权重、tokenizer
+│   ├── siglip-so400m-patch14-384/     # 语义视觉权重
+│   └── Wan2.2-TI2V-5B/               # DiT 三个分片及 Wan2.2_VAE.pth
+├── scanqa_foresight/
+│   ├── train_original.json
+│   ├── train_paired.jsonl
+│   ├── val_original.json
+│   └── scene_pairs.json
+├── embodiedscan/
+│   └── embodiedscan_infos_{train,val,test}.pkl
+├── metadata/
+│   ├── scannet_train_gt_box.json
+│   └── scannet_val_pred_box.json
 └── scannet/
+    ├── posed_images/<scene>/          # RGB、深度、位姿、intrinsic.txt
+    └── wan22_ti2v_offline_uniform32_1280x704_t300_b20_s42_v1/
+        └── <scene>/wan22_ti2v.pt
 ```
 
-### 2. Model preparation
+8709 的数据清单仍存放在 `/data/zhdu/vega3d_repro/experiments/scanqa_foresight_pilot_20261020_v1/data`，仓库内 `data/scanqa_foresight` 指向该目录。数据根目录和输出位置可在 [配置](configs/foresight/scanqa_pilot.yaml) 中修改，相对路径按仓库根目录解析。
 
-All checkpoints should be placed under `data/models/` and named exactly as expected by the training scripts.
+迁移资源时检查软链接目标，不能只复制链接。保留完整的场景帧列表元数据；删除未采样的元数据条目会改变 uniform32 选帧，导致特征不对齐。补验证特征时还需要已导出的 `llava/model/multimodal_generative_encoder/wan22_prompt_embedding.pt`；已有缓存可直接复制，不需重新加载 UMT5。
 
-Required checkpoints for all released settings:
+## 检查和训练
 
-| Model | Hugging Face | Expected local path | Used by |
-| --- | --- | --- | --- |
-| LLaVA-Video-7B-Qwen2 | [lmms-lab/LLaVA-Video-7B-Qwen2](https://huggingface.co/lmms-lab/LLaVA-Video-7B-Qwen2) | `data/models/LLaVA-Video-7B-Qwen2` | All training scripts |
-| SigLIP | [google/siglip-so400m-patch14-384](https://huggingface.co/google/siglip-so400m-patch14-384) | `data/models/siglip-so400m-patch14-384` | All training scripts |
-
-Download them first:
+所有命令在仓库根目录运行。默认仅输出配置；训练必须带 `--execute`。
 
 ```bash
-mkdir -p data/models
+# 检查权重文件、训练观测、配对清单；同时列出缺失的验证特征。
+python scripts/3d/train/train_scanqa_foresight.py --experiment E03 --check-data
 
-huggingface-cli download lmms-lab/LLaVA-Video-7B-Qwen2 \
-  --local-dir data/models/LLaVA-Video-7B-Qwen2
+# CPU 读取一条真实样本，检查 tokenizer、视觉数据和五帧监督张量。
+python scripts/3d/train/train_scanqa_foresight.py --experiment E03 --check-loader
 
-huggingface-cli download google/siglip-so400m-patch14-384 \
-  --local-dir data/models/siglip-so400m-patch14-384
+# CPU 模型测试。
+CUDA_VISIBLE_DEVICES='' PYTHONPATH=.:tests QWEN35_TEST_TOKENIZER=data/models/Qwen3.5-2B-Language python -m unittest discover -s tests -p 'test_*.py' -v
+
+# 两步试跑。
+python scripts/3d/train/train_scanqa_foresight.py --experiment E03 --gpus 0,1 --max-steps 2 --run-name qwen35-e03-smoke --execute
+
+# 在当前 400 条 QA 上训练 1 epoch，约 50 个 optimizer steps。
+python scripts/3d/train/train_scanqa_foresight.py --experiment E03 --gpus 0,1 --run-name qwen35-e03-pilot --execute
 ```
 
-Optional generative backbones and auxiliary checkpoints. Download only the ones required by the script you plan to run:
+| 实验 | Queries | 视频 loss | QA 数据 |
+|---|---|---|---|
+| E00 | 无 | 无 | 原问答 |
+| E01 | 32 个 | 无 | 相同问答 |
+| E03 | 32 个 | 权重 0.1 | 相同问答 + 配对视频片段 |
 
-| Model | Hugging Face | Expected local path | Used by |
-| --- | --- | --- | --- |
-| Wan2.1-T2V-1.3B | [Wan-AI/Wan2.1-T2V-1.3B](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B) | `data/models/Wan2.1-T2V-1.3B` | `scripts/3d/train/train_wan_t2v_online.sh` |
-| Wan2.1-VACE-1.3B | [Wan-AI/Wan2.1-VACE-1.3B](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B) | `data/models/Wan2.1-VACE-1.3B` | `scripts/3d/train/train_wan_vace_online.sh` |
-| Stable Diffusion 2.1 | [Manojb/stable-diffusion-2-1-base](https://huggingface.co/Manojb/stable-diffusion-2-1-base) | `data/models/stable-diffusion-2-1-base` | `scripts/3d/train/train_sd21_online.sh`, `scripts/3d/train/train_vae_online.sh`, and SEVA/Vmem preprocessing |
-| Stable Video Diffusion | [stabilityai/stable-video-diffusion-img2vid](https://huggingface.co/stabilityai/stable-video-diffusion-img2vid) | `data/models/stable-video-diffusion-img2vid` | `scripts/3d/train/train_svd_online.sh` |
-| DINOv3 Large | [timm/vit_large_patch16_dinov3.lvd1689m](https://huggingface.co/timm/vit_large_patch16_dinov3.lvd1689m) | `data/models/vit_large_patch16_dinov3.sat493m` | `scripts/3d/train/train_dinov3_online.sh` |
-| V-JEPA V2 | [facebook/vjepa2-vitg-fpc64-384-ssv2](https://huggingface.co/facebook/vjepa2-vitg-fpc64-384-ssv2) | `data/models/vjepa2-vitg-fpc64-384-ssv2` | `scripts/3d/train/train_vjepa_online.sh` |
-| VGGT | [facebook/VGGT-1B](https://huggingface.co/facebook/VGGT-1B) | `data/models/VGGT-1B` | `scripts/3d/train/train_vggt_online.sh` |
-| SEVA | [stabilityai/stable-virtual-camera](https://huggingface.co/stabilityai/stable-virtual-camera) | `data/models/stable-virtual-camera` | `scripts/3d/train/train_seva_offline.sh` |
-| Vmem | [liguang0115/vmem](https://huggingface.co/liguang0115/vmem) | `data/models/vmem` | `scripts/3d/train/train_vmem_offline.sh` |
+默认 micro batch=1、global batch=8；累积步数自动按 GPU 数计算。对照组使用不同 run-name，保持其余配置一致。当前数据加载器只支持本配置的单轮 ScanQA 问答，不直接接受 VSI-Train-10k 或机器人动作数据。
 
-Additional CLIP checkpoint for models that require a separate text/conditioning encoder:
+输出默认写入 `checkpoints/<run-name>/`。`foresight_record/` 保存配置、源码/数据校验值、依赖版本、训练日志与退出码。输出目录不能重用；中断恢复需相同配置、源码、数据和 GPU 进程数，并增加 `--resume`。两步试跑改变了训练日程，正式实验应从相同初始化新建运行。
 
-| Model | Hugging Face | Expected local path | Required by |
-| --- | --- | --- | --- |
-| CLIP-ViT-H-14-laion2B-s32B-b79K | [laion/CLIP-ViT-H-14-laion2B-s32B-b79K](https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K) | `data/models/CLIP-ViT-H-14-laion2B-s32B-b79K` | `scripts/3d/train/train_svd_online.sh` and SEVA/Vmem preprocessing |
+## 验证集
 
-Notes:
-
-- See [detailed checkpoint setup](llava/model/multimodal_generative_encoder/MODEL_PREPARATION.md) for auxiliary files such as `empty_prompt_embeds.pt`, WAN prompt embeddings, VGGT checkpoint placement, and SEVA/Vmem preprocessing dependencies.
-
-
-
-## 🏋 Training/Evaluation
-
-This README keeps only the three main script examples used to present the released VEGA-3D settings.
-
-### 1. VEGA-3D with WAN-T2V
+先查看待补的离线特征；该工具默认只检查，不提取。
 
 ```bash
-bash scripts/3d/train/train_wan_t2v_online.sh
+python wan_offline_tools/extract_scanqa_validation.py --check-only
+# 有空闲卡时，指定 GPU 执行特征提取。
+python wan_offline_tools/extract_scanqa_validation.py --gpu 0 --execute
 ```
 
-### 2. VEGA-3D with WAN-VACE
+五个缺失场景：`scene0011_00`、`scene0064_00`、`scene0084_00`、`scene0249_00`、`scene0377_00`。检查模式发现缺失时返回 1，属预期结果。
 
 ```bash
-bash scripts/3d/train/train_wan_vace_online.sh
+# 先检查模型与特征，再加 --gpu 0 --execute 执行推理。
+python scripts/3d/eval/eval_scanqa_foresight.py   --model-path checkpoints/qwen35-e03-pilot   --answer-file results/e03_scanqa.jsonl
+
+# 推理完成后计算原 ScanQA 指标，METEOR 需要 Java。
+python llava/eval/eval_scanqa.py --input-file results/e03_scanqa.jsonl
 ```
 
-### 3. VEGA-3D with SD2.1
+指标脚本另需 `data/processed/scanqa_val_llava_style.json`，其中应保留每条问题的多参考答案 `metadata.answers`。标准答案只用于计分；推理 prompt 不包含答案。推理保留原 VEGA 离线特征输入，不加载新增的视频监督教师。
 
-```bash
-bash scripts/3d/train/train_sd21_online.sh
-```
+## 代码位置
 
-All three scripts train first and then run the five downstream evaluations by default. Set `RUN_EVAL=0` inside the script if you want training only.
+- `llava/model/foresight.py`：query 参数、插入位置、答案损失。
+- `llava/model/language_model/llava_qwen.py`：Qwen 前向、Z、损失组合和生成。
+- `llava/model/multimodal_generative_encoder/wan22_foresight.py`：冻结视频教师、VAE 和 flow loss。
+- `llava/train/foresight_data.py`：观测/目标隔离检查和五帧读取。
+- `wan_offline_tools/train_entry.py`：训练兼容层和 checkpoint 保存。
+- `repro/prepare_scanqa_foresight_pilot.py`：从处理后的 ScanQA 数据生成小规模清单。
 
-Evaluation wrappers remain in `scripts/3d/eval/` and follow the standard pattern:
+## 来源
 
-```text
-bash scripts/3d/eval/eval_<task>.sh <run_name> uniform 32 <generative_model_id>
-```
-
-For online settings, use `None` as the last argument. For offline settings, pass the offline feature id.
-
-## 👍 Acknowledgement
-
-We build upon the following great works and open source repositories
-* [Video-3D-LLM](https://github.com/LaVi-Lab/Video-3D-LLM): the codebase our repository is built upon.
-* [VG-LLM](https://github.com/LaVi-Lab/VG-LLM), [Wan2.1](https://github.com/Wan-Video/Wan2.1), [3DRS](https://github.com/Visual-AI/3DRS)
-
-
-## 📖 Citation
-If you find this repository useful in your research, please consider giving a star ⭐ and a citation.
-```bibtex
-@inproceedings{wu2026vega,
-      title={Generation Models Know Space: Unleashing Implicit 3D Priors for Scene Understanding},
-      author={Xianjin Wu and Dingkang Liang and Tianrui Feng and Kui Xia and Yumeng Zhang and Xiaofan Li and Xiao Tan and Xiang Bai},
-      booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
-      year={2026}
-}
-```
+当前实现保留 VEGA-3D 的特征融合和 3D 编码，使用 Qwen3.5、SigLIP 及 Wan2.2。代码来源、引用和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。

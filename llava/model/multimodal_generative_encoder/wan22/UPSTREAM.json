@@ -6,6 +6,9 @@
     "modules/__init__.py",
     "utils/__init__.py",
     "modules/attention.py: tolerate optional flash-attn ABI import errors; runtime uses masked SDPA",
-    "modules/t5.py: lazy CUDA device default allows CPU-only imports and empty-prompt export"
-  ]
+    "modules/t5.py: lazy CUDA device default allows CPU-only imports and empty-prompt export",
+    "configs/__init__.py: keep only TI2V-5B configuration",
+    "modules/model.py: optional non-reentrant activation checkpointing"
+  ],
+  "scope": "TI2V-5B DiT, VAE, text-condition export and feature extraction dependencies"
 }

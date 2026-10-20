@@ -1,2 +1,0 @@
-# VGGT utils package.
-

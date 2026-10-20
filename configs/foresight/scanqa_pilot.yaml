@@ -2,7 +2,7 @@ schema_version: 1
 description: ScanQA heldout-view pilot; engineering configuration, not tuned paper settings.
 seed: 42
 data:
-  root: /data/zhdu/vega3d_repro/experiments/scanqa_foresight_pilot_20261020_v1/data
+  root: data/scanqa_foresight
   train_original: train_original.json
   train_paired: train_paired.jsonl
   validation: val_original.json
@@ -22,7 +22,7 @@ model:
   flow_shift: 5.0
   teacher_gradient_checkpointing: true
 training:
-  output_root: /data/zhdu/vega3d_repro/checkpoints
+  output_root: checkpoints
   epochs: 1
   max_steps: -1
   micro_batch: 1
