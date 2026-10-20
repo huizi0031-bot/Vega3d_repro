@@ -26,6 +26,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5PreTrainedModel
 
 from llava.model.llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
+from llava.model.foresight import ForesightSlots, ForesightCausalLMOutput, answer_loss
 
 
 class LlavaQwen35Config(Qwen3_5TextConfig):
@@ -51,6 +52,11 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
         self.model = LlavaQwen35Model(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.foresight = None
+        if getattr(config, "foresight_enabled", False):
+            self.foresight = ForesightSlots(config.hidden_size, config.foresight_num_queries,
+                                            getattr(config, "foresight_context_dim", 4096))
+        self.__dict__["_foresight_teacher_runtime"] = None
 
         # Only one grounding-head initializer. All dimensions follow Qwen3.5's
         # config.hidden_size (2048 for Qwen3.5-1.7B).
@@ -114,6 +120,8 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
 
     def _init_weights(self, module):
         super()._init_weights(module)
+        if isinstance(module, ForesightSlots):
+            nn.init.normal_(module.queries, mean=0., std=self.config.initializer_range)
         if isinstance(module, LlavaQwen35Model) and hasattr(module, 'image_newline'):
             # A new bridge from a language-only checkpoint has no pretrained
             # image-newline vector. Initialize it explicitly, not with empty memory.
@@ -143,6 +151,9 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
         video_dict=None,
         use_object_proposals: bool = False,
         box_labels=None,
+        foresight_pixels=None,
+        foresight_prepared: bool = False,
+        return_foresight_embeddings: bool = False,
         **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         """Route ordinary LM, DPO and proposal-based 3D grounding batches."""
@@ -173,6 +184,25 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
                 video_dict,
                 use_object_proposals=use_object_proposals,
             )
+
+        if self.foresight is not None and (use_object_proposals or dpo_forward):
+            raise ValueError("Foresight pilot currently supports single-turn QA, not grounding or DPO")
+
+        if self.foresight is not None and not foresight_prepared and past_key_values is None:
+            if position_ids is not None and position_ids.ndim > 2:
+                raise ValueError("Foresight pilot uses 1D sequence positions; 3D mRoPE is unsupported")
+            if inputs_embeds is None:
+                inputs_embeds = self.get_input_embeddings()(input_ids)
+            inputs_embeds, attention_mask, position_ids, labels, slots = self.foresight(
+                inputs_embeds, attention_mask, labels,
+                max_length=getattr(self.config, "tokenizer_model_max_length", None),
+                padding_side=getattr(self.config, "tokenizer_padding_side", "right"))
+            return self._forward_foresight(inputs_embeds, attention_mask, position_ids, labels,
+                slots, foresight_pixels, use_cache, output_attentions, output_hidden_states,
+                return_dict, return_foresight_embeddings, logits_to_keep)
+
+        if foresight_pixels is not None:
+            raise ValueError("Teacher pixels are accepted only on an unprepared foresight QA forward")
 
         if use_object_proposals:
             if object_features is None:
@@ -228,6 +258,46 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
             logits_to_keep=logits_to_keep,
             **kwargs,
         )
+
+    def _forward_foresight(self, embeddings, mask, positions, labels, slots, pixels,
+                          use_cache, output_attentions, output_hidden_states,
+                          return_dict, return_embeddings, logits_to_keep):
+        if labels is not None and use_cache:
+            raise ValueError("Foresight training must use use_cache=False")
+        outputs = self.model(inputs_embeds=embeddings, attention_mask=mask,
+            position_ids=positions, use_cache=bool(use_cache) if labels is None else False,
+            output_attentions=output_attentions, output_hidden_states=output_hidden_states,
+            return_dict=True)
+        hidden = outputs.last_hidden_state
+        z = hidden.gather(1, slots[..., None].expand(-1, -1, hidden.shape[-1]))
+        qa_loss = video_loss = loss = None
+        if labels is not None:
+            qa_loss, logits = answer_loss(self.lm_head, hidden, labels)
+            loss = qa_loss
+        else:
+            selected = hidden[:, -logits_to_keep:] if isinstance(logits_to_keep, int) and logits_to_keep else hidden
+            logits = self.lm_head(selected)
+        weight = float(getattr(self.config, "foresight_video_loss_weight", 0.))
+        if self.training and labels is not None and weight > 0:
+            if pixels is None:
+                raise ValueError("Video supervision is enabled but foresight_pixels are missing")
+            teacher = self.__dict__["_foresight_teacher_runtime"]
+            if teacher is None:
+                from llava.model.multimodal_generative_encoder.wan22_foresight import Wan22ForesightTeacher
+                teacher = Wan22ForesightTeacher(self.config, z.device)
+                self.__dict__["_foresight_teacher_runtime"] = teacher
+            video_loss = teacher(self.foresight.to_wan(z), pixels)
+            loss = loss + weight*video_loss
+        elif pixels is not None:
+            raise ValueError("Teacher pixels supplied while training video loss is disabled")
+        # Keep E01 projector in the distributed graph, without affecting QA.
+        if loss is not None and video_loss is None:
+            loss = loss + 0.*self.foresight.to_wan(z).sum()
+        result = ForesightCausalLMOutput(loss=loss, logits=logits,
+            past_key_values=outputs.past_key_values, hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions, qa_loss=qa_loss, video_loss=video_loss,
+            foresight_embeddings=z if return_embeddings else None)
+        return result if return_dict is not False else result.to_tuple()
 
     def predict_box(
         self,
@@ -399,6 +469,13 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
             )
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
+        if self.foresight is not None:
+            if kwargs.get("foresight_pixels") is not None:
+                raise ValueError("Generation never accepts teacher target frames")
+            inputs_embeds, attention_mask, position_ids, _, _ = self.foresight(
+                inputs_embeds, attention_mask, max_length=getattr(self.config, "tokenizer_model_max_length", None),
+                padding_side=getattr(self.config, "tokenizer_padding_side", "right"))
+            kwargs["foresight_prepared"] = True
         return super().generate(
             position_ids=position_ids,
             attention_mask=attention_mask,
@@ -412,6 +489,7 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
         images = kwargs.pop("images", None)
         image_sizes = kwargs.pop("image_sizes", None)
         video_dict = kwargs.pop("video_dict", None)
+        foresight_prepared = kwargs.pop("foresight_prepared", False)
         model_inputs = super().prepare_inputs_for_generation(
             input_ids,
             past_key_values=past_key_values,
@@ -424,6 +502,7 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
             model_inputs["image_sizes"] = image_sizes
         if video_dict is not None:
             model_inputs["video_dict"] = video_dict
+        model_inputs["foresight_prepared"] = foresight_prepared
         return model_inputs
 
 

@@ -1,4 +1,10 @@
 <!-- personal-repository-guide -->
+
+> **Qwen3.5/Wan2.2 foresight pilot:** [architecture and configuration](docs/foresight_scanqa.md),
+> [E00/E01/E03 settings](configs/foresight/scanqa_pilot.yaml),
+> [verification status](docs/foresight_verification_20261020.md).
+> Preview is the default; experiment training is only started explicitly by the user.
+
 > 当前个人实验版本：Qwen3.5-2B-Language + Wan2.2-TI2V-5B。
 > 仓库与服务器同步说明见 [PERSONAL_REPOSITORY.md](PERSONAL_REPOSITORY.md)，模型配置见 [README_QWEN35_WAN22.md](README_QWEN35_WAN22.md)。
 > 以下保留原项目说明与引用。

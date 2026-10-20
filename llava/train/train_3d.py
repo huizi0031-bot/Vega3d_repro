@@ -64,6 +64,16 @@ IS_TOKENIZER_GREATER_THAN_0_14 = version.parse(tokenizers.__version__) >= versio
 
 @dataclass
 class ModelArguments:
+    foresight_enabled: bool = field(default=False)
+    foresight_num_queries: int = field(default=32)
+    foresight_context_dim: int = field(default=4096)
+    foresight_video_loss_weight: float = field(default=0.0)
+    foresight_wan_checkpoint: Optional[str] = field(default=None)
+    foresight_video_frames: int = field(default=5)
+    foresight_video_height: int = field(default=256)
+    foresight_video_width: int = field(default=320)
+    foresight_flow_shift: float = field(default=5.0)
+    foresight_wan_gradient_checkpointing: bool = field(default=True)
     model_name_or_path: Optional[str] = field(default="facebook/opt-125m")
     model_class_name: Optional[str] = field(default=None, metadata={"help": "Used to init model class, format is XXXXForCausalLM. e.g. currently XXXX is chosen from LlavaLlama, LlavaMixtral, LlavaMistral, Llama"})
 
@@ -203,6 +213,7 @@ class DataArguments:
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
+    foresight_lr: Optional[float] = field(default=None)
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
     remove_unused_columns: bool = field(default=False)
@@ -1514,6 +1525,9 @@ class LazySupervisedDataset(Dataset):
         return image, image_size, "image"
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        if getattr(self.data_args, "foresight_enabled", False):
+            # A broken teacher pair must fail, never silently select another QA row.
+            return self._get_item(i)
         # TODO: define number of retries somewhere else
         num_base_retries = 3
         num_final_retries = 300
@@ -1547,7 +1561,7 @@ class LazySupervisedDataset(Dataset):
             raise e
 
     def _get_item(self, i) -> Dict[str, torch.Tensor]:
-        sources = self.list_data_dict[i]
+        sources = copy.deepcopy(self.list_data_dict[i])
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
@@ -1653,6 +1667,16 @@ class LazySupervisedDataset(Dataset):
                 box_label = [box_label]
             box_label = [int(i) for i in box_label]
             data_dict["box_label"] = box_label
+        if getattr(self.data_args, "foresight_video_loss_weight", 0.) > 0:
+            from llava.train.foresight_data import load_teacher_pixels
+            if self.data_args.frame_sampling_strategy != "uniform":
+                raise ValueError("Foresight pilot preserves the recorded uniform QA observation selection")
+            selected = self.video_processor.sample_frame_files(
+                self.list_data_dict[i]["video"], force_sample=self.data_args.force_sample,
+                frames_upbound=self.data_args.frames_upbound)
+            data_dict["foresight_pixels"] = load_teacher_pixels(self.list_data_dict[i],
+                self.data_args.foresight_video_height, self.data_args.foresight_video_width,
+                self.data_args.foresight_video_frames, observed_frames=selected)
         return data_dict
 
 
@@ -1707,6 +1731,12 @@ class DataCollatorForSupervisedDataset(object):
             batch["box_labels"] = [instance["box_label"]  for instance in instances]
             batch["use_object_proposals"] = True
 
+        has_teacher = ["foresight_pixels" in instance for instance in instances]
+        if any(has_teacher):
+            if not all(has_teacher):
+                raise ValueError("Cannot mix paired and unpaired teacher rows in one batch")
+            batch["foresight_pixels"] = torch.stack([instance["foresight_pixels"] for instance in instances])
+
         return batch
 
 
@@ -1727,6 +1757,9 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     cfg_pretrained = None
 
     overwrite_config = {}
+    for name in ModelArguments.__dataclass_fields__:
+        if name.startswith("foresight_"):
+            overwrite_config[name] = getattr(model_args, name)
     if any(
         [
             model_args.use_generative_feature is not None,
@@ -2043,6 +2076,18 @@ def train(attn_implementation=None):
 
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    if model_args.foresight_video_loss_weight < 0:
+        raise ValueError("foresight_video_loss_weight cannot be negative")
+    if not model_args.foresight_enabled and model_args.foresight_video_loss_weight:
+        raise ValueError("Video supervision requires foresight_enabled")
+    if model_args.foresight_enabled:
+        if training_args.lora_enable or training_args.bits != 16:
+            raise ValueError("Foresight pilot currently supports full-precision-parameter fine-tuning only")
+        if model_args.ground_head_type is not None:
+            raise ValueError("ScanQA foresight pilot must use ground_head_type=None")
+    for name in ModelArguments.__dataclass_fields__:
+        if name.startswith("foresight_"):
+            setattr(data_args, name, getattr(model_args, name))
     data_args.use_generative_feature = bool(model_args.use_generative_feature)
     if data_args.use_generative_feature:
         data_args.generative_feature_source = model_args.generative_feature_source
@@ -2352,6 +2397,10 @@ def train(attn_implementation=None):
         model.config.faster_token_stride = model_args.faster_token_stride
         model.config.add_time_instruction = data_args.add_time_instruction
         model.config.force_sample = data_args.force_sample
+        model.config.frames_upbound = data_args.frames_upbound
+        model.config.frame_sampling_strategy = data_args.frame_sampling_strategy
+        model.config.generative_model_id = data_args.generative_model_id
+        model.config.add_spatial_instruction = data_args.add_spatial_instruction
         model.config.mm_spatial_pool_stride = model_args.mm_spatial_pool_stride
 
         ### Deciding train which part of the model
@@ -2460,6 +2509,22 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
+    if model_args.foresight_enabled:
+        # Apply after the base project's trainable-part selection.
+        model.foresight.requires_grad_(True)
+        model.config.keys_to_ignore_at_inference = ["qa_loss", "video_loss", "foresight_embeddings"]
+    record_dir = pathlib.Path(training_args.output_dir)/"foresight_record"
+    if record_dir.is_dir() and training_args.process_index == 0:
+        parameters = [{"name": n, "shape": list(getattr(p,"ds_shape",p.shape)),
+            "numel": int(getattr(p, "ds_numel", p.numel())), "dtype": str(p.dtype),
+            "trainable": p.requires_grad} for n,p in model.named_parameters()]
+        devices = [{"visible_index": i, "name": torch.cuda.get_device_name(i),
+                    "memory_bytes": torch.cuda.get_device_properties(i).total_memory}
+                   for i in range(torch.cuda.device_count())]
+        (record_dir/"model_parameters.json").write_text(json.dumps({"parameters": parameters,
+            "total": sum(p["numel"] for p in parameters),
+            "trainable": sum(p["numel"] for p in parameters if p["trainable"]),
+            "devices": devices, "teacher_in_checkpoint": False}, indent=2))
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
     trainer = LLaVATrainer(model=model, processing_class=tokenizer, args=training_args, **data_module)
 

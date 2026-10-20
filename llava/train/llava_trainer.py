@@ -335,6 +335,22 @@ class LengthGroupedSampler(Sampler):
 
 class LLaVATrainer(Trainer):
 
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        loss, outputs = super().compute_loss(model, inputs, return_outputs=True, **kwargs)
+        if model.training and getattr(outputs, "qa_loss", None) is not None:
+            buffer = self.__dict__.setdefault("_foresight_loss_log", [])
+            video = outputs.video_loss if outputs.video_loss is not None else loss.new_zeros(())
+            buffer.append(torch.stack((outputs.qa_loss.detach(), video.detach())))
+        return (loss, outputs) if return_outputs else loss
+
+    def log(self, logs, *args, **kwargs):
+        buffer = self.__dict__.get("_foresight_loss_log", [])
+        if "loss" in logs and buffer:
+            values = self.accelerator.reduce(torch.stack(buffer).float().mean(0), reduction="mean").cpu().tolist()
+            logs = {**logs, "qa_loss": values[0], "video_loss": values[1]}
+            buffer.clear()
+        return super().log(logs, *args, **kwargs)
+
     def create_accelerator_and_postprocess(self):
         # Use the installed Trainer's API; keep this class's task sampler and
         # per-module optimizer groups unchanged.
@@ -449,6 +465,8 @@ class LLaVATrainer(Trainer):
             decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
             decay_parameters = [name for name in decay_parameters if "bias" not in name]
             lr_mapper = {}
+            if getattr(self.args, "foresight_lr", None) is not None:
+                lr_mapper["foresight"] = self.args.foresight_lr
             if self.args.mm_projector_lr is not None:
                 lr_mapper["mm_projector"] = self.args.mm_projector_lr
             if self.args.mm_vision_tower_lr is not None:

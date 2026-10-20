@@ -1,5 +1,8 @@
 # ScanQA foresight pilot — 2026-10-20
 
+This document records the historical data-preparation step. For the subsequent
+model/loss/loader implementation, see [foresight_scanqa.md](foresight_scanqa.md).
+
 ## Scope
 Data-only preparation. Existing project code, source annotations, model weights,
 and shared images are unchanged. No model or GPU training is launched.

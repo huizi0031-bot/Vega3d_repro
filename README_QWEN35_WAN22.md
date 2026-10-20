@@ -122,3 +122,17 @@ training remain separate verification steps and are not claimed by CPU tests.
 - https://huggingface.co/docs/transformers/v5.3.0/model_doc/qwen3_5
 - https://github.com/Wan-Video/Wan2.2
 - https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
+
+## ScanQA foresight pilot implementation (2026-10-20)
+
+The opt-in foresight branch is implemented separately from the old five-task
+smoke workflow. It provides continuous query slots, frozen Wan conditional-flow
+supervision, matched E00/E01/E03 configs, CPU data preflight and a native Qwen3.5
+ScanQA inference entry. No experiment training is launched by this preparation.
+
+- [Implementation, architecture and complete configuration record](docs/foresight_scanqa.md)
+- [Machine-readable experiment settings](configs/foresight/scanqa_pilot.yaml)
+- [Verification record and remaining GPU checks](docs/foresight_verification_20261020.md)
+
+`python scripts/3d/train/train_scanqa_foresight.py --experiment E03 --check-data`
+is preview/read-only mode. Training requires explicit `--gpus` and `--execute`.

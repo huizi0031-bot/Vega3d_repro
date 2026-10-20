@@ -487,7 +487,14 @@ class WanModel(ModelMixin, ConfigMixin):
             context_lens=context_lens)
 
         for block in self.blocks:
-            x = block(x, **kwargs)
+            if getattr(self, 'gradient_checkpointing', False) and torch.is_grad_enabled():
+                from torch.utils.checkpoint import checkpoint
+                # Bind block/kwargs to avoid late-binding recomputation errors.
+                def run_block(value, ctx, _block=block, _kwargs=kwargs):
+                    return _block(value, **{**_kwargs, 'context': ctx})
+                x = checkpoint(run_block, x, context, use_reentrant=False)
+            else:
+                x = block(x, **kwargs)
 
         # head
         x = self.head(x, e)
