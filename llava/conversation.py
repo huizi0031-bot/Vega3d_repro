@@ -379,7 +379,7 @@ conv_llava_llama_2 = Conversation(
 
 def safe_load_tokenizer(tokenizer_id):
     try:
-        return AutoTokenizer.from_pretrained(tokenizer_id)
+        return AutoTokenizer.from_pretrained(tokenizer_id, local_files_only=True)
     except Exception:
         return None
 
@@ -577,6 +577,11 @@ conv_templates = {
     "mpt": conv_mpt,
     "qwen_1_5": conv_qwen,
     "qwen_2": conv_qwen,
+    "qwen35": dataclasses.replace(
+        conv_qwen,
+        version="qwen35",
+        messages=[],
+    ),
     "gemma_instruct": conv_gemma_instruct,
 }
 

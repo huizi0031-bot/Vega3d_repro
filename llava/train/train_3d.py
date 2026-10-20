@@ -44,6 +44,10 @@ from llava.train.llava_trainer import LLaVATrainer
 
 from llava import conversation as conversation_lib
 from llava.model import *
+from llava.model.language_model.llava_qwen import (
+    LlavaQwen35Config,
+    LlavaQwen35ForCausalLM,
+)
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token, resize_and_center_crop
 from llava.video_utils import VideoProcessor, merge_video_dict
 from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord
@@ -125,17 +129,17 @@ class ModelArguments:
     ground_head_temperature: Optional[float] = field(default=0.07)
 
     use_generative_feature: Optional[bool] = field(default=False)
-    generative_feat_dim: Optional[int] = field(default=1280)
+    generative_feat_dim: Optional[int] = field(default=3072)
     generative_projector_type: Optional[str] = field(default="mlp2x_gelu")
     generative_feature_source: Optional[str] = field(default="offline")
-    generative_vision_tower_type: Optional[str] = field(default="wan_vace_online")
+    generative_vision_tower_type: Optional[str] = field(default="wan22_ti2v_online")
     generative_vision_tower_checkpoint: Optional[str] = field(default=None)
-    generative_vision_tower_task: Optional[str] = field(default="vace-1.3B")
-    generative_vision_tower_size: Optional[str] = field(default="832*480")
+    generative_vision_tower_task: Optional[str] = field(default="ti2v-5B")
+    generative_vision_tower_size: Optional[str] = field(default="1280*704")
     generative_vision_tower_timestep: Optional[int] = field(default=300)
     generative_vision_tower_shift: Optional[float] = field(default=5.0)
     generative_vision_tower_context_scale: Optional[float] = field(default=1.0)
-    generative_vision_tower_feat_block_idx: Optional[int] = field(default=-1)
+    generative_vision_tower_feat_block_idx: Optional[int] = field(default=20)
     generative_vision_tower_condition_on_first_frame: Optional[bool] = field(default=True)
     generative_vision_tower_weight_name: Optional[str] = field(default=None)
     generative_vision_tower_model_version: Optional[float] = field(default=None)
@@ -223,12 +227,13 @@ class TrainingArguments(transformers.TrainingArguments):
     mm_vision_adapter_lr: Optional[float] = None
     group_by_task_length: bool = field(default=False)
     group_by_varlen: bool = field(default=False)
+    group_by_length: bool = field(default=False)
     group_by_modality_length: bool = field(default=False)
     group_by_modality_length_auto: bool = field(default=False)
     auto_find_batch_size: bool = field(default=False)
     gradient_checkpointing: bool = field(default=True)
     verbose_logging: bool = field(default=False)
-    attn_implementation: str = field(default="flash_attention_2", metadata={"help": "Use transformers attention implementation."})
+    attn_implementation: str = field(default="sdpa", metadata={"help": "Use transformers attention implementation."})
 
 
 # @dataclass
@@ -317,7 +322,7 @@ def find_all_linear_names(model):
 
     if "lm_head" in lora_module_names:  # needed for 16-bit
         lora_module_names.remove("lm_head")
-    
+
     rank0_print("lora_module_names", lora_module_names)
     return list(lora_module_names)
 
@@ -393,23 +398,91 @@ def add_tokens_and_resize_embeddings(
     tokenizer: transformers.PreTrainedTokenizer,
     model: transformers.PreTrainedModel,
 ):
-    """Resize tokenizer and embedding.
-
-    Note: This is the unoptimized version that may make your embedding size not be divisible by 64.
     """
+    Safely register VEGA-3D tokens for Qwen3.
+
+    Preserve pretrained embedding rows, including any
+    vocabulary rows reserved by the original checkpoint.
+    """
+
+    old_tokenizer_size = len(tokenizer)
+
+    old_embedding_size = (
+        model.get_input_embeddings().weight.shape[0]
+    )
+
+    # 1. Register new tokens.
     num_new_tokens = tokenizer.add_tokens(new_tokens)
-    model.resize_token_embeddings(len(tokenizer))
 
+    # 2. Never shrink pretrained embeddings.
+    if len(tokenizer) > old_embedding_size:
+        model.resize_token_embeddings(
+            len(tokenizer),
+            mean_resizing=False,
+        )
+
+    # 3. Initialize newly registered token rows.
     if num_new_tokens > 0:
-        input_embeddings = model.get_input_embeddings().weight.data
-        output_embeddings = model.get_output_embeddings().weight.data
 
-        input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-        output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+        new_token_ids = [
+            tokenizer.convert_tokens_to_ids(token)
+            for token in new_tokens
+            if tokenizer.convert_tokens_to_ids(token)
+            >= old_tokenizer_size
+        ]
 
-        input_embeddings[-num_new_tokens:] = input_embeddings_avg
-        output_embeddings[-num_new_tokens:] = output_embeddings_avg
+        if len(new_token_ids) != num_new_tokens:
+            raise ValueError(
+                "New token registration is inconsistent."
+            )
 
+        initialized_weights = set()
+
+        with torch.no_grad():
+
+            for embedding in (
+                model.get_input_embeddings(),
+                model.get_output_embeddings(),
+            ):
+
+                if embedding is None:
+                    continue
+
+                weight = embedding.weight
+
+                # Avoid initializing shared weights twice.
+                if weight.data_ptr() in initialized_weights:
+                    continue
+
+                initialized_weights.add(weight.data_ptr())
+
+                if max(new_token_ids) >= weight.shape[0]:
+                    raise ValueError(
+                        "Embedding size is smaller than "
+                        "the newly registered token IDs."
+                    )
+
+                # Use only original tokenizer rows when
+                # computing the initialization average.
+                reference_size = min(
+                    old_tokenizer_size,
+                    weight.shape[0],
+                )
+
+                average_embedding = (
+                    weight[:reference_size]
+                    .float()
+                    .mean(dim=0, keepdim=True)
+                )
+
+                weight[new_token_ids] = (
+                    average_embedding.to(
+                        dtype=weight.dtype,
+                        device=weight.device,
+                    )
+                )
+
+    return num_new_tokens
 
 def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer) -> Dict:
     """Tokenize a list of strings."""
@@ -694,7 +767,7 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
                 content = conv["value"]
 
             role =  roles.get(role, role)
-            
+
             conv = [{"role" : role, "content" : content}]
             encode_id = tokenizer.apply_chat_template(conv)
             input_id += encode_id
@@ -702,9 +775,9 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
                 target += [IGNORE_INDEX] * len(encode_id)
             else:
                 target += encode_id
-        
 
-                    
+
+
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         for idx, encode_id in enumerate(input_id):
             if encode_id in unmask_tokens_idx:
@@ -721,6 +794,217 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
         labels=targets,  # tensor(bs x seq_len)
     )
 
+def preprocess_qwen35(
+    sources,
+    tokenizer: transformers.PreTrainedTokenizer,
+    has_image: bool = False,
+    system_message: str = "You are a helpful assistant.",
+) -> Dict:
+    """
+    Qwen3.5 preprocessing for VEGA-3D.
+
+    - Preserve the native Qwen3.5 chat template.
+    - Replace <image> with IMAGE_TOKEN_INDEX.
+    - Train only on assistant answers and their <|im_end|>.
+    - Mask system/user messages and thinking prefixes.
+    """
+
+    if not tokenizer.is_fast:
+        raise ValueError(
+            "preprocess_qwen35 requires a fast tokenizer "
+            "to compute token offsets."
+        )
+
+    roles = {
+        "human": "user",
+        "gpt": "assistant",
+        "user": "user",
+        "assistant": "assistant",
+        "system": "system",
+    }
+
+    # Use a temporary tokenizer so the original vocabulary
+    # and model embeddings are not modified.
+    local_tokenizer = copy.deepcopy(tokenizer)
+
+    local_tokenizer.add_tokens(
+        ["<image>"],
+        special_tokens=True,
+    )
+
+    image_token_id = local_tokenizer.convert_tokens_to_ids(
+        "<image>"
+    )
+
+    end_marker = "<|im_end|>"
+
+    all_input_ids = []
+    all_labels = []
+
+    for source in sources:
+
+        messages = [{
+            "role": "system",
+            "content": system_message,
+        }]
+
+        for sentence in source:
+
+            role = sentence.get(
+                "role",
+                sentence.get("from"),
+            )
+
+            content = sentence.get(
+                "content",
+                sentence.get("value"),
+            )
+
+            if role not in roles:
+                raise ValueError(
+                    f"Unknown conversation role: {role}"
+                )
+
+            messages.append({
+                "role": roles[role],
+                "content": str(content),
+            })
+
+        # Keep the native Qwen3.5 template.
+        prompt = local_tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=False,
+            enable_thinking=False,
+        )
+
+        # Find the assistant answer ranges in the rendered text.
+        assistant_spans = []
+        cursor = 0
+
+        for message in messages:
+
+            header = (
+                f"<|im_start|>{message['role']}\n"
+            )
+
+            header_start = prompt.find(
+                header,
+                cursor,
+            )
+
+            if header_start < 0:
+                raise ValueError(
+                    f"Cannot locate message header: {header}"
+                )
+
+            body_start = header_start + len(header)
+
+            message_end = prompt.find(
+                end_marker,
+                body_start,
+            )
+
+            if message_end < 0:
+                raise ValueError(
+                    "Cannot locate message end marker."
+                )
+
+            if message["role"] == "assistant":
+
+                answer = message["content"]
+
+                # Qwen3.5 may strip leading newlines in
+                # the final assistant message.
+                answer_start = message_end - len(answer)
+
+                if prompt[answer_start:message_end] != answer:
+                    answer = answer.lstrip("\n")
+                    answer_start = message_end - len(answer)
+
+                if prompt[answer_start:message_end] != answer:
+                    raise ValueError(
+                        "Assistant answer does not match "
+                        "the rendered Qwen3.5 template."
+                    )
+
+                # Supervise answer text and its end marker.
+                assistant_spans.append((
+                    answer_start,
+                    message_end + len(end_marker),
+                ))
+
+            cursor = message_end + len(end_marker)
+
+        # Tokenize the complete rendered conversation.
+        encoded = local_tokenizer(
+            prompt,
+            add_special_tokens=False,
+            return_offsets_mapping=True,
+            truncation=False,
+        )
+
+        input_ids = encoded["input_ids"]
+        offsets = encoded["offset_mapping"]
+
+        labels = [IGNORE_INDEX] * len(input_ids)
+
+        for idx, (start, end) in enumerate(offsets):
+
+            if start == end:
+                continue
+
+            for span_start, span_end in assistant_spans:
+
+                if start >= span_start and end <= span_end:
+                    labels[idx] = input_ids[idx]
+                    break
+
+        # Replace the temporary image token with VEGA's
+        # internal image placeholder.
+        for idx, token_id in enumerate(input_ids):
+
+            if token_id == image_token_id:
+                input_ids[idx] = IMAGE_TOKEN_INDEX
+                labels[idx] = IGNORE_INDEX
+
+        max_length = tokenizer.model_max_length
+
+        input_ids = input_ids[:max_length]
+        labels = labels[:max_length]
+
+        if not any(label != IGNORE_INDEX for label in labels):
+            raise ValueError(
+                "No assistant supervision tokens remain "
+                "after preprocessing/truncation."
+            )
+
+        all_input_ids.append(
+            torch.tensor(input_ids, dtype=torch.long)
+        )
+
+        all_labels.append(
+            torch.tensor(labels, dtype=torch.long)
+        )
+
+    # Pad the batch; VEGA normally preprocesses one
+    # conversation at a time.
+    input_ids = torch.nn.utils.rnn.pad_sequence(
+        all_input_ids,
+        batch_first=True,
+        padding_value=tokenizer.pad_token_id,
+    )
+
+    labels = torch.nn.utils.rnn.pad_sequence(
+        all_labels,
+        batch_first=True,
+        padding_value=IGNORE_INDEX,
+    )
+
+    return {
+        "input_ids": input_ids,
+        "labels": labels,
+    }
 
 def preprocess_llama3(
     sources,
@@ -779,7 +1063,7 @@ def preprocess_llama3(
                 content = conv["value"]
 
             role =  roles.get(role, role)
-            
+
             conv = [{"role" : role, "content" : content}]
             # First is bos token we don't need here
             encode_id = tokenizer.apply_chat_template(conv)[1:]
@@ -788,9 +1072,9 @@ def preprocess_llama3(
                 target += [IGNORE_INDEX] * len(encode_id)
             else:
                 target += encode_id
-        
 
-                    
+
+
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         for idx, encode_id in enumerate(input_id):
             if encode_id in unmask_tokens_idx:
@@ -1006,8 +1290,19 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
         return preprocess_v1(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "mpt":
         return preprocess_mpt(sources, tokenizer, has_image=has_image)
+    if conversation_lib.default_conversation.version == "qwen35":
+        return preprocess_qwen35(
+            sources,
+            tokenizer,
+            has_image=has_image,
+        )
+
     if conversation_lib.default_conversation.version == "qwen":
-        return preprocess_qwen(sources, tokenizer, has_image=has_image)
+        return preprocess_qwen(
+            sources,
+            tokenizer,
+            has_image=has_image,
+        )
     if conversation_lib.default_conversation.version == "gemma":
         return preprocess_gemma(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "llama_v3":
@@ -1262,7 +1557,7 @@ class LazySupervisedDataset(Dataset):
             if type(image_file) is list:
                 image = [self.process_image(f) for f in image_file]
                 # Handling multi images
-                # overwrite to process with simple pad 
+                # overwrite to process with simple pad
                 if len(image_file) > 1:
                     image = [self.process_image(f, "pad") for f in image_file]
                     image = [[im[0], im[1], "image"] for im in image]
@@ -1280,7 +1575,7 @@ class LazySupervisedDataset(Dataset):
             #         box_label,
             #     )
             #     sources[0]['conversations'][1]["value"] = processed_box_label
-            
+
             if self.list_data_dict[i].get("metadata", {}).get("dataset", None) in ["scan2cap"]:
                 box_input = self.list_data_dict[i]["box_input"][:3]
                 # if 'discrete' in model.config.world_position_embedding_type:
@@ -1403,11 +1698,11 @@ class DataCollatorForSupervisedDataset(object):
             batch["images"] = images
             if "video_dict" in instances[0]:
                 batch["video_dict"] = merge_video_dict([instance["video_dict"] for instance in instances])
-                
+
 
         if "prompt" in instances[0]:
             batch["prompts"] = [instance["prompt"] for instance in instances]
-        
+
         if "box_label" in instances[0]:
             batch["box_labels"] = [instance["box_label"]  for instance in instances]
             batch["use_object_proposals"] = True
@@ -1488,7 +1783,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
         overwrite_config["fusion_num_layers"] = model_args.fusion_num_layers
         overwrite_config["instruction_tail_keep_tokens"] = model_args.instruction_tail_keep_tokens
         overwrite_config["instruction_relation_boost"] = model_args.instruction_relation_boost
-        
+
     if model_args.use_pos_skipping is not None and model_args.pos_skipping_range is not None:
         overwrite_config["use_pos_skipping"] = model_args.use_pos_skipping
         overwrite_config["pos_skipping_range"] = model_args.pos_skipping_range
@@ -1515,7 +1810,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
     if model_args.mm_spatial_pool_mode is not None:
         overwrite_config["mm_spatial_pool_mode"] = model_args.mm_spatial_pool_mode
-    
+
     # configs for 3d tasks
     if model_args.object_feature_type is not None:
         overwrite_config["object_feature_type"] = model_args.object_feature_type
@@ -1552,7 +1847,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
         overwrite_config["min_xyz_range"] = [-15, -15, -5]
         overwrite_config["max_xyz_range"] = [15, 15, 5]
 
-    
+
     if model_args.ground_head_type is not None:
         overwrite_config["ground_head_type"] = model_args.ground_head_type
         overwrite_config["ground_head_hidden_size"] = model_args.ground_head_hidden_size
@@ -1567,6 +1862,78 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
             setattr(cfg_pretrained, k, v)
 
         customized_kwargs["config"] = cfg_pretrained
+
+    # Convert the pretrained Qwen3.5 configuration to VEGA-Qwen3.
+    if "qwen35" in model_args.model_name_or_path.lower().replace(".", "").replace("_", ""):
+
+        if cfg_pretrained is None:
+            cfg_pretrained = AutoConfig.from_pretrained(
+                model_args.model_name_or_path,
+                local_files_only=True,
+            )
+
+        if cfg_pretrained.model_type not in ("qwen3_5_text", "llava_qwen35"):
+            raise ValueError(
+                f"Expected Qwen3.5 config, got {cfg_pretrained.model_type}"
+            )
+
+        # Preserve pretrained architecture parameters and VEGA-specific settings.
+        config_dict = cfg_pretrained.to_dict()
+
+        # The custom config class supplies its own model_type.
+        config_dict.pop("model_type", None)
+
+        # Qwen3.5: populate vision config before multimodal construction.
+        if model_args.vision_tower is not None:
+            vision_config = AutoConfig.from_pretrained(
+                model_args.vision_tower,
+                local_files_only=True,
+            )
+            vision_config = getattr(
+                vision_config, "vision_config", vision_config
+            )
+
+            config_dict["mm_vision_tower"] = model_args.vision_tower
+            config_dict["mm_hidden_size"] = int(
+                vision_config.hidden_size
+            )
+            config_dict["mm_projector_type"] = (
+                model_args.mm_projector_type
+            )
+            config_dict["mm_vision_select_layer"] = (
+                model_args.mm_vision_select_layer
+            )
+            config_dict["mm_vision_select_feature"] = (
+                model_args.mm_vision_select_feature
+            )
+            config_dict["mm_patch_merge_type"] = (
+                model_args.mm_patch_merge_type
+            )
+            config_dict["vision_tower_pretrained"] = getattr(
+                model_args, "vision_tower_pretrained", ""
+            )
+
+            rank0_print(
+                "Qwen3.5 vision config: "
+                f"tower={config_dict['mm_vision_tower']}, "
+                f"vision_dim={config_dict['mm_hidden_size']}, "
+                f"language_dim={config_dict['hidden_size']}"
+            )
+
+        cfg_pretrained = LlavaQwen35Config.from_dict(config_dict)
+        # 保存时使用我们的多模态模型类名
+        cfg_pretrained.architectures = [
+            "LlavaQwen35ForCausalLM"
+        ]
+
+        customized_kwargs["config"] = cfg_pretrained
+
+        rank0_print(
+            f"Using VEGA-Qwen3.5 config: "
+            f"model_type={cfg_pretrained.model_type}, "
+            f"hidden_size={cfg_pretrained.hidden_size}, "
+            f"layers={cfg_pretrained.num_hidden_layers}"
+        )
 
     if model_args.model_class_name is not None:
         actual_model_class_name = f"{model_args.model_class_name}ForCausalLM"
@@ -1618,28 +1985,30 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
                 low_cpu_mem_usage=False,
                 **customized_kwargs,
             )
-        elif "qwen" in model_args.model_name_or_path.lower():
-            if "moe" in model_args.model_name_or_path.lower() or "A14B" in model_args.model_name_or_path:
-                model = LlavaQwenMoeForCausalLM.from_pretrained(
-                    model_args.model_name_or_path,
-                    cache_dir=training_args.cache_dir,
-                    attn_implementation=training_args.attn_implementation,
-                    torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-                    low_cpu_mem_usage=False,
-                    **customized_kwargs,
-                )
-                from transformers.models.qwen2_moe.modeling_qwen2_moe import Qwen2MoeSparseMoeBlock
+        elif "qwen35" in model_args.model_name_or_path.lower().replace(".", "").replace("_", ""):
+            model, loading_info = LlavaQwen35ForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                cache_dir=training_args.cache_dir,
+                attn_implementation=training_args.attn_implementation,
+                torch_dtype=(
+                    torch.bfloat16 if training_args.bf16 else None
+                ),
+                low_cpu_mem_usage=False,
+                output_loading_info=True,
+                **customized_kwargs,
+            )
 
-                deepspeed.utils.set_z3_leaf_modules(model, [Qwen2MoeSparseMoeBlock])
-            else:
-                model = LlavaQwenForCausalLM.from_pretrained(
-                    model_args.model_name_or_path,
-                    cache_dir=training_args.cache_dir,
-                    attn_implementation=training_args.attn_implementation,
-                    torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-                    low_cpu_mem_usage=False,
-                    **customized_kwargs,
-                )
+            missing_language = [name for name in loading_info['missing_keys']
+                if name.startswith(('model.embed_tokens.', 'model.layers.', 'model.norm.'))]
+            if missing_language:
+                raise ValueError('Language weights did not load completely. Use prepare_qwen35_wan22.py '
+                                 'to export the canonical language-only layout. Missing: '+str(missing_language[:5]))
+
+        elif "qwen" in model_args.model_name_or_path.lower():
+            raise ValueError(
+                "当前实验仅支持 Qwen3.5。"
+                "请使用 Qwen3.5-2B-Language 预训练模型路径。"
+            )
         elif "gemma" in model_args.model_name_or_path.lower():
             model = LlavaGemmaForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
@@ -1660,6 +2029,12 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
             low_cpu_mem_usage=False,
             **customized_kwargs,
         )
+    if model_args.vision_tower is not None and hasattr(model, 'get_vision_tower'):
+        tower = model.get_vision_tower()
+        if not tower.is_loaded:
+            tower.load_model()
+        # All subsequent full saves include these trained vision tensors.
+        model.config.vision_tower_weights_in_checkpoint = True
     return model
 
 
@@ -1705,7 +2080,7 @@ def train(attn_implementation=None):
                 ),
             )
         )
-    
+
     model_args.voxel_size = data_args.voxel_size
     model_args.min_xyz_range = data_args.min_xyz_range
     model_args.max_xyz_range = data_args.max_xyz_range
@@ -1793,24 +2168,99 @@ def train(attn_implementation=None):
             conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
         else:
             conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1"]
-    
-    # add ground tokens
-    if model_args.ground_head_type:
-        from llava.constants import GROUND_TOKEN
-        ground_tokens = [GROUND_TOKEN]
-        add_tokens_and_resize_embeddings(
-            ground_tokens,
-            tokenizer=tokenizer,
-            model=model,
-        )
-        setattr(model.config, "ground_token_ids", tokenizer.encode("".join(ground_tokens), add_special_tokens=False))
 
-    add_tokens_and_resize_embeddings(
-        ["<coord>"],
+        # ==========================================
+    # Qwen3.5: Register VEGA-3D special tokens
+    # ==========================================
+
+    from llava.constants import GROUND_TOKEN
+
+    tokens_to_add = ["<coord>"]
+
+    if model_args.ground_head_type:
+        tokens_to_add.insert(0, GROUND_TOKEN)
+
+    num_added_tokens = add_tokens_and_resize_embeddings(
+        tokens_to_add,
         tokenizer=tokenizer,
         model=model,
     )
-    setattr(model.config, "coord_token_ids", tokenizer.encode("".join(["<coord>"]), add_special_tokens=False))
+
+    rank0_print(
+        f"Added {num_added_tokens} VEGA-3D tokens."
+    )
+
+    # Each VEGA token must be encoded as one ID.
+    def get_single_token_id(token_text):
+
+        token_ids = tokenizer.encode(
+            token_text,
+            add_special_tokens=False,
+        )
+
+        if len(token_ids) != 1:
+            raise ValueError(
+                f"{token_text} is not a single token: "
+                f"{token_ids}"
+            )
+
+        token_id = int(token_ids[0])
+
+        if token_id >= (
+            model.get_input_embeddings().weight.shape[0]
+        ):
+            raise ValueError(
+                f"{token_text} exceeds model vocab size."
+            )
+
+        return token_id
+
+    # Save grounding token ID.
+    if model_args.ground_head_type:
+
+        model.config.ground_token_ids = [
+            get_single_token_id(GROUND_TOKEN)
+        ]
+
+        rank0_print(
+            "Ground Token ID: "
+            f"{model.config.ground_token_ids}"
+        )
+
+    # Save coordinate token ID.
+    model.config.coord_token_ids = [
+        get_single_token_id("<coord>")
+    ]
+
+    rank0_print(
+        "Coord Token ID: "
+        f"{model.config.coord_token_ids}"
+    )
+
+    # Validate vocabulary compatibility.
+    input_vocab_size = (
+        model.get_input_embeddings().weight.shape[0]
+    )
+
+    output_vocab_size = (
+        model.get_output_embeddings().weight.shape[0]
+    )
+
+    assert input_vocab_size >= len(tokenizer)
+
+    assert output_vocab_size >= len(tokenizer)
+
+    rank0_print(
+        f"Tokenizer Size: {len(tokenizer)}"
+    )
+
+    rank0_print(
+        f"Input Embedding Size: {input_vocab_size}"
+    )
+
+    rank0_print(
+        f"Output Embedding Size: {output_vocab_size}"
+    )
     setattr(model.config, "instruction_tail_keep_tokens", int(model_args.instruction_tail_keep_tokens))
     setattr(model.config, "instruction_relation_boost", float(model_args.instruction_relation_boost))
 
@@ -1902,7 +2352,7 @@ def train(attn_implementation=None):
         model.config.faster_token_stride = model_args.faster_token_stride
         model.config.add_time_instruction = data_args.add_time_instruction
         model.config.force_sample = data_args.force_sample
-        model.config.mm_spatial_pool_stride = model_args.mm_spatial_pool_stride 
+        model.config.mm_spatial_pool_stride = model_args.mm_spatial_pool_stride
 
         ### Deciding train which part of the model
         if training_args.lora_enable:
@@ -1967,7 +2417,7 @@ def train(attn_implementation=None):
             for name, param in model.named_parameters():
                 if "world_position_embedding" in name:
                     param.requires_grad_(True)
-        
+
         if model_args.ground_head_type is not None:
             if model_args.ground_head_type in ['mlp', 'score', 'infonce']:
                 for name, param in model.named_parameters():
@@ -2011,16 +2461,17 @@ def train(attn_implementation=None):
                         module = module.to(torch.bfloat16)
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    trainer = LLaVATrainer(model=model, processing_class=tokenizer, args=training_args, **data_module)
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:
         try:
             trainer.train()
-        except Exception as e:
-            import traceback; traceback.print_exc()
-            exit()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            raise
     trainer.save_state()
 
     model.config.use_cache = True

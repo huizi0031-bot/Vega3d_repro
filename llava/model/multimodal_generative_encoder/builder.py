@@ -1,6 +1,10 @@
 def build_generative_vision_tower(config):
     tower_type = getattr(config, "generative_vision_tower_type", getattr(config, "generative_encoder_type", "wan_vace_online"))
 
+    if tower_type == "wan22_ti2v_online":
+        from .wan22_ti2v_encoder import Wan22TI2VOnlineEncoder
+        return Wan22TI2VOnlineEncoder(config)
+
     if tower_type in {"wan_t2v_online", "wan_t2v"}:
         from .wan_t2v_encoder import WanT2VOnlineEncoder
 

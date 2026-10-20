@@ -11,22 +11,21 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
-
 import os
 import warnings
 import shutil
-
+import json
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
 import torch
 from llava.model import *
+from llava.model.language_model.llava_qwen import (
+    LlavaQwen35Config,
+    LlavaQwen35ForCausalLM,
+)
 from llava.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from llava.utils import rank0_print
-
-
-def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="auto", torch_dtype="float16",attn_implementation="flash_attention_2", customized_config=None, overwrite_config=None, **kwargs):
+def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="auto", torch_dtype="float16",attn_implementation="sdpa", customized_config=None, overwrite_config=None, **kwargs):
     kwargs["device_map"] = device_map
-
     if load_8bit:
         kwargs["load_in_8bit"] = True
     elif load_4bit:
@@ -38,18 +37,20 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         kwargs["torch_dtype"] = torch.bfloat16
     else:
         import pdb;pdb.set_trace()
-
     if customized_config is not None:
         kwargs["config"] = customized_config
+    is_multimodal = bool(kwargs.pop("multimodal", False))
+    # Detect VEGA-Qwen3.5 from its saved model configuration.
+    is_vega_qwen35 = (
+        getattr(customized_config, "model_type", None) == "llava_qwen35"
+    )
+    config_path = os.path.join(model_path, "config.json")
+    if not is_vega_qwen35 and os.path.isfile(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            saved_config = json.load(f)
+        is_vega_qwen35 = saved_config.get("model_type") == "llava_qwen35"
 
-    if "multimodal" in kwargs:
-        if kwargs["multimodal"] is True:
-            is_multimodal = True
-            kwargs.pop("multimodal")
-    else:
-        is_multimodal = False
-
-    if "llava" in model_name.lower() or is_multimodal:
+    if "llava" in model_name.lower() or is_multimodal or is_vega_qwen35:
         # Load LLaVA model
         if "lora" in model_name.lower() and model_base is None:
             warnings.warn(
@@ -61,53 +62,43 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             rank0_print("Loading LLaVA from base model...")
             if "mixtral" in model_name.lower():
                 from llava.model.language_model.llava_mixtral import LlavaMixtralConfig
-
                 lora_cfg_pretrained = LlavaMixtralConfig.from_pretrained(model_path)
                 tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
                 model = LlavaMixtralForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
             elif "mistral" in model_name.lower():
                 from llava.model.language_model.llava_mistral import LlavaMistralConfig
-
                 lora_cfg_pretrained = LlavaMistralConfig.from_pretrained(model_path)
                 tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
                 model = LlavaMistralForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
             elif "gemma" in model_name.lower():
                 from llava.model.language_model.llava_gemma import LlavaGemmaConfig
-
                 lora_cfg_pretrained = LlavaGemmaConfig.from_pretrained(model_path)
                 tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
                 model = LlavaGemmaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
             else:
                 from llava.model.language_model.llava_llama import LlavaConfig
-
                 lora_cfg_pretrained = LlavaConfig.from_pretrained(model_path)
                 tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
                 model = LlavaLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
-
             token_num, tokem_dim = model.lm_head.out_features, model.lm_head.in_features
             if model.lm_head.weight.shape[0] != token_num:
                 model.lm_head.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
                 model.model.embed_tokens.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
-
             rank0_print("Loading additional LLaVA weights...")
             if os.path.exists(os.path.join(model_path, "non_lora_trainables.bin")):
                 non_lora_trainables = torch.load(os.path.join(model_path, "non_lora_trainables.bin"), map_location="cpu")
             else:
                 # this is probably from HF Hub
                 from huggingface_hub import hf_hub_download
-
                 def load_from_hf(repo_id, filename, subfolder=None):
                     cache_file = hf_hub_download(repo_id=repo_id, filename=filename, subfolder=subfolder)
                     return torch.load(cache_file, map_location="cpu")
-
                 non_lora_trainables = load_from_hf(model_path, "non_lora_trainables.bin")
             non_lora_trainables = {(k[11:] if k.startswith("base_model.") else k): v for k, v in non_lora_trainables.items()}
             if any(k.startswith("model.model.") for k in non_lora_trainables):
                 non_lora_trainables = {(k[6:] if k.startswith("model.") else k): v for k, v in non_lora_trainables.items()}
             model.load_state_dict(non_lora_trainables, strict=False)
-
             from peft import PeftModel
-
             rank0_print("Loading LoRA weights...")
             model = PeftModel.from_pretrained(model, model_path)
             rank0_print("Merging LoRA weights...")
@@ -137,7 +128,6 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 or "llava-v1.5" in model_name.lower()
             ):
                 from llava.model.language_model.llava_llama import LlavaConfig
-
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
                 if customized_config is None:
                     llava_cfg = LlavaConfig.from_pretrained(model_path)
@@ -145,13 +135,11 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                         llava_cfg.delay_load = True  # a workaround for correctly loading v1.5 models
                 else:
                     llava_cfg = customized_config
-
                 tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
                 llava_cfg = LlavaConfig.from_pretrained(model_path)
                 model = LlavaLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=llava_cfg, **kwargs)
             else:
                 raise ValueError(f"Model {model_name} not supported")
-
             mm_projector_weights = torch.load(os.path.join(model_path, "mm_projector.bin"), map_location="cpu")
             mm_projector_weights = {k: v.to(torch.float16) for k, v in mm_projector_weights.items()}
             model.load_state_dict(mm_projector_weights, strict=False)
@@ -159,21 +147,17 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             rank0_print(f"Loaded LLaVA model: {model_path}")
             if "mixtral" in model_name.lower():
                 from llava.model.language_model.llava_mixtral import LlavaMixtralConfig
-
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
                 if customized_config is None:
                     llava_cfg = LlavaMixtralConfig.from_pretrained(model_path)
                 else:
                     llava_cfg = customized_config
-
                 if overwrite_config is not None:
                     rank0_print(f"Overwriting config with {overwrite_config}")
                     for k, v in overwrite_config.items():
                         setattr(llava_cfg, k, v)
-
                 tokenizer = AutoTokenizer.from_pretrained(model_path)
                 model = LlavaMixtralForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=llava_cfg, **kwargs)
-
             elif "mistral" in model_name.lower() or "zephyr" in model_name.lower():
                 tokenizer = AutoTokenizer.from_pretrained(model_path)
                 model = LlavaMistralForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, **kwargs)
@@ -187,7 +171,6 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 or "llava-v1.5" in model_name.lower()
             ):
                 from llava.model.language_model.llava_llama import LlavaConfig
-
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
                 if customized_config is None:
                     llava_cfg = LlavaConfig.from_pretrained(model_path)
@@ -195,54 +178,85 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                         llava_cfg.delay_load = True  # a workaround for correctly loading v1.5 models
                 else:
                     llava_cfg = customized_config
-
                 if overwrite_config is not None:
                     rank0_print(f"Overwriting config with {overwrite_config}")
                     for k, v in overwrite_config.items():
                         setattr(llava_cfg, k, v)
-
                 model = LlavaLlamaForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=llava_cfg, **kwargs)
 
-            elif "qwen" in model_name.lower() or "quyen" in model_name.lower():
-                tokenizer = AutoTokenizer.from_pretrained(model_path)
-                if "moe" in model_name.lower() or "A14B" in model_name.lower():
-                    from llava.model.language_model.llava_qwen_moe import LlavaQwenMoeConfig
-                    if overwrite_config is not None:
-                        llava_cfg = LlavaQwenMoeConfig.from_pretrained(model_path)
-                        rank0_print(f"Overwriting config with {overwrite_config}")
-                        for k, v in overwrite_config.items():
-                            setattr(llava_cfg, k, v)
-                        model = LlavaQwenMoeForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=llava_cfg, **kwargs)
-                    else:
-                        model = LlavaQwenMoeForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, **kwargs)
+            elif is_vega_qwen35 or (
+                is_multimodal and "qwen35" in model_name.lower()
+            ):
+                rank0_print("Loading VEGA-Qwen3.5 model...")
 
+                # 1. Load tokenizer
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_path,
+                    local_files_only=True,
+                )
+
+                # 2. Load model configuration
+                if customized_config is not None:
+                    base_config = customized_config
                 else:
-                    from llava.model.language_model.llava_qwen import LlavaQwenConfig
+                    base_config = AutoConfig.from_pretrained(
+                        model_path,
+                        local_files_only=True,
+                    )
 
-                    if overwrite_config is not None:
-                        llava_cfg = LlavaQwenConfig.from_pretrained(model_path)
-                        rank0_print(f"Overwriting config with {overwrite_config}")
-                        for k, v in overwrite_config.items():
-                            setattr(llava_cfg, k, v)
-                        model = LlavaQwenForCausalLM.from_pretrained(
-                            model_path,
-                            low_cpu_mem_usage=True,
-                            attn_implementation=attn_implementation,
-                            config=llava_cfg,
-                            **kwargs,
-                        )
-                    else:
-                        model = LlavaQwenForCausalLM.from_pretrained(
-                            model_path,
-                            low_cpu_mem_usage=True,
-                            attn_implementation=attn_implementation,
-                            **kwargs,
-                        )
+                # 3. Convert to the custom VEGA-Qwen3.5 configuration
+                if isinstance(base_config, LlavaQwen35Config):
+                    llava_cfg = base_config
+                else:
+                    config_dict = base_config.to_dict()
+                    config_dict.pop("model_type", None)
+                    llava_cfg = LlavaQwen35Config.from_dict(config_dict)
+
+                # 4. Apply optional configuration overrides
+                if overwrite_config is not None:
+                    rank0_print(f"Overwriting config with {overwrite_config}")
+                    for key, value in overwrite_config.items():
+                        setattr(llava_cfg, key, value)
+
+                # 5. Verify that this is a multimodal checkpoint
+                if getattr(llava_cfg, "mm_vision_tower", None) is None:
+                    raise ValueError(
+                        "VEGA-Qwen3.5 inference requires a multimodal "
+                        "configuration containing mm_vision_tower. "
+                        "The original Qwen3.5-2B-Language checkpoint alone "
+                        "is not a trained VEGA-3D checkpoint."
+                    )
+
+                # Avoid passing config twice.
+                kwargs.pop("config", None)
+
+                # 6. Load the custom model
+                model = LlavaQwen35ForCausalLM.from_pretrained(
+                    model_path,
+                    config=llava_cfg,
+                    low_cpu_mem_usage=True,
+                    attn_implementation=attn_implementation,
+                    local_files_only=True,
+                    **kwargs,
+                )
+                rank0_print(f"Loaded model: {type(model).__name__}")
+
+            elif "qwen" in model_name.lower() or "quyen" in model_name.lower():
+                raise ValueError(
+                    "This VEGA-Qwen3.5 worktree only supports VEGA-Qwen3.5 "
+                    "checkpoints. Use the original VEGA-3D worktree for Qwen2."
+                )
 
             elif "gemma" in model_name.lower():
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
                 cfg_pretrained = AutoConfig.from_pretrained(model_path)
-                model = LlavaGemmaForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, config=cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
+                model = LlavaGemmaForCausalLM.from_pretrained(
+                    model_path,
+                    low_cpu_mem_usage=True,
+                    config=cfg_pretrained,
+                    attn_implementation=attn_implementation,
+                    **kwargs,
+                )
             else:
                 try:
                     from llava.model.language_model.llava_llama import LlavaConfig
@@ -251,7 +265,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                     if customized_config is None:
                         llava_cfg = LlavaConfig.from_pretrained(model_path)
                         if "v1.5" in model_path.lower():
-                            llava_cfg.delay_load = True  # a workaround for correctly loading v1.5 models
+                            llava_cfg.delay_load = True
                     else:
                         llava_cfg = customized_config
 
@@ -259,9 +273,16 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                         rank0_print(f"Overwriting config with {overwrite_config}")
                         for k, v in overwrite_config.items():
                             setattr(llava_cfg, k, v)
-                    model = LlavaLlamaForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=llava_cfg, **kwargs)
-                except:
-                    raise ValueError(f"Model {model_name} not supported")
+
+                    model = LlavaLlamaForCausalLM.from_pretrained(
+                        model_path,
+                        low_cpu_mem_usage=True,
+                        attn_implementation=attn_implementation,
+                        config=llava_cfg,
+                        **kwargs,
+                    )
+                except Exception as exc:
+                    raise ValueError(f"Model {model_name} not supported") from exc
 
     else:
         # Load language model
@@ -270,10 +291,15 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             from peft import PeftModel
 
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
-            model = AutoModelForCausalLM.from_pretrained(model_base, torch_dtype=torch.float16, low_cpu_mem_usage=True, device_map="auto")
+            model = AutoModelForCausalLM.from_pretrained(
+                model_base,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+                device_map="auto",
+            )
             print(f"Loading LoRA weights from {model_path}")
             model = PeftModel.from_pretrained(model, model_path)
-            print(f"Merging weights")
+            print("Merging weights")
             model = model.merge_and_unload()
             print("Convert to FP16...")
             model.to(torch.float16)
@@ -281,22 +307,29 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             use_fast = False
             if "mpt" in model_name.lower().replace("prompt", ""):
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
-                model = AutoModelForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, trust_remote_code=True, **kwargs)
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    low_cpu_mem_usage=True,
+                    trust_remote_code=True,
+                    **kwargs,
+                )
             else:
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
-                model = AutoModelForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, **kwargs)
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    low_cpu_mem_usage=True,
+                    **kwargs,
+                )
 
     rank0_print(f"Model Class: {model.__class__.__name__}")
     image_processor = None
-
-    if "llava" in model_name.lower() or is_multimodal:
+    if "llava" in model_name.lower() or is_multimodal or is_vega_qwen35:
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
         mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
         if mm_use_im_patch_token:
             tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
         if mm_use_im_start_end:
             tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
-            
         if hasattr(model.config, "text_config") and isinstance(model.config.text_config, dict):
             class _DummyTextConfig:
                 pass
@@ -305,17 +338,15 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 dummy.vocab_size = model.config.vocab_size
             else:
                 dummy.vocab_size = model.get_input_embeddings().weight.shape[0]
-            model.config.text_config = dummy    
-        
-        model.resize_token_embeddings(len(tokenizer))
-
+            model.config.text_config = dummy
+        if len(tokenizer) > model.get_input_embeddings().weight.shape[0]:
+            model.resize_token_embeddings(len(tokenizer))
         vision_tower = model.get_vision_tower()
         if not vision_tower.is_loaded:
             vision_tower.load_model(device_map=device_map)
         if device_map != "auto":
-            vision_tower.to(device="cuda", dtype=torch.float16)
+            vision_tower.to(device=model.device, dtype=model.dtype)
         image_processor = vision_tower.image_processor
-
     if hasattr(model.config, "max_sequence_length"):
         context_len = model.config.max_sequence_length
     elif hasattr(model.config, "max_position_embeddings"):
@@ -324,5 +355,4 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         context_len = model.config.tokenizer_model_max_length
     else:
         context_len = 2048
-
     return tokenizer, model, image_processor, context_len

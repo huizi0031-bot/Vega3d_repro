@@ -26,7 +26,7 @@ from .multimodal_encoder.builder import build_vision_tower
 from .multimodal_resampler.builder import build_vision_resampler
 from .multimodal_projector.builder import build_vision_projector
 from .multimodal_generative_encoder.builder import build_generative_vision_tower
-
+from copy import copy
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
 from llava.mm_utils import get_anyres_image_grid_shape
@@ -47,7 +47,7 @@ class LlavaMetaModel:
             self.mm_projector = build_vision_projector(config, vision_cfg=self.vision_tower.config)
 
             if "unpad" in getattr(config, "mm_patch_merge_type", ""):
-                self.image_newline = nn.Parameter(torch.empty(config.hidden_size, dtype=self.dtype))
+                self.image_newline = nn.Parameter(torch.randn(config.hidden_size, dtype=self.dtype) / math.sqrt(config.hidden_size))
         
         if hasattr(self.config, 'world_position_embedding_type'):
             from llava.model.position_encoding import PositionEmbeddingSine3D, PositionEmbeddingMLP
@@ -81,13 +81,15 @@ class LlavaMetaModel:
             # ZeRO-3 partition metadata issues for dynamically created parameters.
             self.__dict__["_generative_vision_tower_runtime"] = None
 
-            self.config.mm_projector_type = generative_proj_type
+            generative_projector_config = copy(self.config)
+            generative_projector_config.mm_projector_type = (
+                 generative_proj_type
+            )
             self.generative_projector = build_vision_projector(
-                self.config,
+                generative_projector_config,
                 vision_cfg=self.vision_tower.config,
                 in_dim=generative_feat_dim_dim,
             )
-            self.config.mm_projector_type = mm_projector_type
             if getattr(self.config, "use_feat_fusion", False):
                 fusion_config = FeatureFusionConfig(
                     fusion_method=getattr(self.config, "feature_fusion_method", "add"),
@@ -560,6 +562,7 @@ class LlavaMetaForCausalLM(ABC):
         use_object_proposals: bool = False,
     ):
         object_boxes = None
+        object_features = None
         if use_object_proposals:
             object_boxes = video_dict["objects"][0]
             object_boxes_center = object_boxes[:, :3]
@@ -688,22 +691,42 @@ class LlavaMetaForCausalLM(ABC):
             
             if use_generative_feature:
                 if generative_feature_source == "offline":
-                    if video_dict is not None and ("generative_feature" in video_dict) and (video_dict["generative_feature"] is not None):
-                        generative_features = video_dict["generative_feature"]  # [B, V, Cg, Hg, Wg]
-                        B, V, Cg, Hg, Wg = generative_features.shape
-                        generative_split_sizes = [V] * B
-                        generative_features = generative_features.view(B * V, Cg, Hg, Wg)
-                        generative_features = generative_features.to(concat_images.device)
-                        generative_features = generative_features.view(B * V, Cg, Hg * Wg).permute(0, 2, 1).contiguous()
-                        generative_features = self.get_model().generative_projector(generative_features)
-                        offline_splits = list(torch.split(generative_features, generative_split_sizes))
-                        for i in range(min(len(offline_splits), len(generative_features_list))):
-                            generative_features_list[i] = offline_splits[i]
-                elif generative_feature_source == "online":
-                    runtime_tower = self._get_runtime_generative_vision_tower()
+                    # VEGA-WAN-OFFLINE: preserve video alignment and projector dtype.
                     if len(video_idx_in_batch) > 0:
-                        video_images = [images_list[idx] for idx in video_idx_in_batch]
-                        video_split_sizes = [x.shape[0] for x in video_images]
+                        if video_dict is None or video_dict.get("generative_feature") is None:
+                            raise ValueError("Offline generative features are required; extract them before training")
+                        generative_features = video_dict["generative_feature"]
+                        if generative_features.ndim != 5:
+                            raise ValueError(f"Expected [B,V,C,H,W] offline features, got {generative_features.shape}")
+                        B, V, Cg, Hg, Wg = generative_features.shape
+                        expected_dim = int(getattr(self.config, "generative_feat_dim", 3072))
+                        if B != len(video_idx_in_batch) or Cg != expected_dim:
+                            raise ValueError(f"Offline feature batch/channel mismatch: {generative_features.shape}")
+                        for batch_i in video_idx_in_batch:
+                            if images_list[batch_i].shape[0] != V:
+                                raise ValueError("Offline features and sampled video frames have different lengths")
+                        projector = self.get_model().generative_projector
+                        generative_features = generative_features.to(
+                            device=concat_images.device,
+                            dtype=next(projector.parameters()).dtype,
+                        )
+                        generative_features = generative_features.reshape(B * V, Cg, Hg * Wg)
+                        generative_features = generative_features.permute(0, 2, 1).contiguous()
+                        generative_features = projector(generative_features)
+                        offline_splits = torch.split(generative_features, [V] * B)
+                        for batch_i, features in zip(video_idx_in_batch, offline_splits):
+                            generative_features_list[batch_i] = features
+                elif generative_feature_source == "online":
+                    if len(video_idx_in_batch) > 0:
+                        runtime_tower = self._get_runtime_generative_vision_tower()
+                        video_images = [
+                            images_list[idx]
+                            for idx in video_idx_in_batch
+                        ]
+                        video_split_sizes = [
+                            x.shape[0]
+                            for x in video_images
+                        ]
                         video_ids = None
                         if video_dict is not None and "video_id" in video_dict and isinstance(video_dict["video_id"], list):
                             video_ids = video_dict["video_id"]
@@ -764,6 +787,15 @@ class LlavaMetaForCausalLM(ABC):
                         for local_i, batch_i in enumerate(video_idx_in_batch):
                             pooled = online_pooled_per_video[local_i]
                             Nv, Cg, Hg, Wg = pooled.shape
+                            expected_dim = int(
+                                getattr(self.config, "generative_feat_dim", 3072)
+                            )
+                            if Cg != expected_dim:
+                                raise ValueError(
+                                    f"Wan feature dimension mismatch: "
+                                    f"expected {expected_dim}, got {Cg}"
+                                )
+
                             online_features = pooled.view(Nv, Cg, Hg * Wg).permute(0, 2, 1).contiguous()
                             online_features = online_features.to(device=projector_device, dtype=proj_dtype)
                             if need_backward_safe_input:
@@ -858,7 +890,16 @@ class LlavaMetaForCausalLM(ABC):
                         coords = world_coords_discrete[idx].flatten(1, 2)
                     else:
                         coords = world_coords[idx].flatten(1, 2)
-                    image_feat = image_feat + self.get_model().world_position_embedding(coords.detach())
+                    position_embedding = self.get_model().world_position_embedding(
+                        coords.detach()
+                    )
+
+                    position_embedding = position_embedding.to(
+                        device=image_feat.device,
+                        dtype=image_feat.dtype,
+                    )
+
+                    image_feat = image_feat + position_embedding
                     new_image_features.append(image_feat)
                 image_features = new_image_features #[32, 196, 3584]
 

@@ -1,1 +1,1 @@
-from .model import LlavaLlamaForCausalLM
+from .model import LlavaQwen35Config, LlavaQwen35ForCausalLM

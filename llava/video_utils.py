@@ -238,7 +238,31 @@ class VideoProcessor:
             "world_coords": world_coords,
         }
 
-    def get_generative_features(self, video_id, model_id='seva'):
+    def get_generative_features(self, video_id, model_id='seva', frame_files=None):
+        # VEGA-WAN-OFFLINE: validated unprojected T2V feature payload.
+        if str(model_id).startswith("wan22_ti2v_offline_uniform"):
+            if not re.fullmatch(r"wan22_ti2v_offline_uniform[0-9]+_[0-9]+x[0-9]+_t[0-9]+_b[0-9]+_s[0-9]+_v1", str(model_id)):
+                raise ValueError(f"Invalid Wan offline feature ID: {model_id}")
+            scene = video_id.split("/")[-1]
+            feature_path = os.path.join("data/scannet", model_id, scene, "wan22_ti2v.pt")
+            payload = torch.load(feature_path, map_location="cpu", weights_only=True)
+            metadata = payload["metadata"]
+            if metadata["video_id"] != video_id:
+                raise ValueError(f"Offline feature scene mismatch: {feature_path}")
+            if metadata["plan"]["feature_id"] != model_id:
+                raise ValueError(f"Offline feature configuration mismatch: {feature_path}")
+            if frame_files is None:
+                raise ValueError("Frame paths are required to validate Wan offline alignment")
+            expected_frames = [os.path.normpath(p) for p in frame_files]
+            if metadata["frame_files"] != expected_frames:
+                raise ValueError(f"Offline feature frame order/sampling mismatch: {feature_path}")
+            feature = payload["features"]
+            if not torch.is_tensor(feature) or tuple(feature.shape) != (len(frame_files), 3072, 14, 14):
+                raise ValueError(f"Invalid Wan offline feature shape: {feature_path}")
+            if not torch.isfinite(feature).all():
+                raise ValueError(f"Non-finite Wan offline feature: {feature_path}")
+            return feature.to(torch.bfloat16)
+
         path_dict = {
             'vae': 'data/scannet/uniform_vae_features',
             'sd-2-1-base': 'data/scannet/uniform_sd2.1_base_features',
@@ -360,8 +384,11 @@ class VideoProcessor:
             if video_id in self.generative_feature:
                 generative_feature = self.generative_feature[video_id]
             else:
-                generative_feature = self.get_generative_features(video_id, model_id=generative_model_id)
+                generative_feature = self.get_generative_features(video_id, model_id=generative_model_id, frame_files=frame_files)
                 self.generative_feature[video_id] = generative_feature
+                if str(generative_model_id).startswith("wan22_ti2v_offline_uniform"):
+                    while len(self.generative_feature) > 4:
+                        self.generative_feature.pop(next(iter(self.generative_feature)))
         # boundry
         world_coords_flat = world_coords.reshape(-1, 3)
         x_min, x_max = world_coords_flat[:, 0].min().item(), world_coords_flat[:, 0].max().item()

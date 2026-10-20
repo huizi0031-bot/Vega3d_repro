@@ -1,3 +1,10 @@
+<!-- personal-repository-guide -->
+> 当前个人实验版本：Qwen3.5-2B-Language + Wan2.2-TI2V-5B。
+> 仓库与服务器同步说明见 [PERSONAL_REPOSITORY.md](PERSONAL_REPOSITORY.md)，模型配置见 [README_QWEN35_WAN22.md](README_QWEN35_WAN22.md)。
+> 以下保留原项目说明与引用。
+
+> **Qwen3.5 + Wan2.2 variant:** see [README_QWEN35_WAN22.md](README_QWEN35_WAN22.md) for this directory's model setup and launchers. The original upstream documentation follows.
+
 # Generation Models Know Space: Unleashing Implicit 3D Priors for Scene Understanding
 
 <div align="center">
