@@ -34,6 +34,10 @@ def training_arguments(config, experiment, data_yaml, output, run_name, gpu_coun
         foresight_video_frames=m.get("teacher_frames", 5), foresight_video_height=m.get("teacher_height", 256),
         foresight_video_width=m.get("teacher_width", 320), foresight_flow_shift=m.get("flow_shift", 5.0),
         foresight_wan_gradient_checkpointing=m.get("teacher_gradient_checkpointing", True))
+    args["foresight_max_translation"] = d.get("max_translation", 0.5)
+    args["foresight_max_rotation"] = d.get("max_rotation", 30.0)
+    if experiment["video_loss_weight"] > 0:
+        args["foresight_pair_cache"] = str(output / "foresight_record" / "scene_pairs.json")
     if m.get("ground_head_type") is not None:
         args["ground_head_type"] = m["ground_head_type"]
     if t["deepspeed"]:

@@ -42,7 +42,7 @@ def resolve_experiment(config, mode=None):
     return dict(queries_enabled=mode != "baseline", video_loss_weight=weight)
 
 
-def check_loader(config, experiment, audit):
+def check_loader(config, experiment, audit, pair_plan):
     """Read a real training row into the actual collator, with GPUs hidden."""
     import tempfile
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -62,6 +62,12 @@ def check_loader(config, experiment, audit):
         data = DataArguments(data_path=str(path),image_folder="data",video_folder="data",embodiedscan_folder="data/embodiedscan/",
             frames_upbound=config["data"]["frame_count"],force_sample=True,is_multimodal=True,
             add_spatial_instruction=True,generative_model_id=config["data"]["feature_id"],frame_sampling_strategy="uniform")
+        data.foresight_max_translation = config["data"].get("max_translation", 0.5)
+        data.foresight_max_rotation = config["data"].get("max_rotation", 30.0)
+        if experiment["video_loss_weight"] > 0:
+            pair_file = Path(directory) / "scene_pairs.json"
+            pair_file.write_text(json.dumps(pair_plan, ensure_ascii=False, indent=2))
+            data.foresight_pair_cache = str(pair_file)
         data.image_processor = SigLipImageProcessor()
         data.mm_use_im_start_end = False
         data.generative_feature_source = "offline"
@@ -95,6 +101,8 @@ def main():
     parser.add_argument("--config", default="configs/3d/foresight.yaml")
     parser.add_argument("--mode", choices=["baseline", "queries", "video"])
     parser.add_argument("--data-path", help="Override data.train: JSON, JSONL or datasets YAML")
+    parser.add_argument("--validation-path", help="Override data.validation: JSON, JSONL or datasets YAML")
+    parser.add_argument("--audit-file", help="Write the CPU data audit as JSON, including failures")
     parser.add_argument("--ground-head", choices=["none", "infonce", "mlp", "score"])
     parser.add_argument("--gpus", help="Required only with --execute, e.g. 0,1")
     parser.add_argument("--run-name")
@@ -113,6 +121,10 @@ def main():
     config = resolve_config_paths(config)
     if cli.data_path:
         config["data"]["train"] = str(resolve_path(cli.data_path))
+    if cli.validation_path:
+        config["data"]["validation"] = str(resolve_path(cli.validation_path))
+    if cli.audit_file and not (cli.check_data or cli.check_loader or cli.execute):
+        parser.error("--audit-file requires --check-data, --check-loader or --execute")
     if cli.ground_head:
         config["model"]["ground_head_type"] = None if cli.ground_head == "none" else cli.ground_head
     mode = cli.mode or config.get("foresight", {}).get("mode", "baseline")
@@ -154,11 +166,21 @@ def main():
     # Preflight and loader checks run on CPU even when the child will train on GPUs.
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
     audit = preflight(config, experiment) if cli.check_data or cli.check_loader or cli.execute else None
-    if cli.check_loader:
-        audit["loader"] = check_loader(config,experiment,audit)
+    pair_plan = audit.pop("_pair_plan") if audit is not None else None
+    if cli.audit_file:
+        audit_path = resolve_path(cli.audit_file)
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2))
+    if cli.check_loader and audit["ready_for_training"]:
+        audit["loader"] = check_loader(config, experiment, audit, pair_plan)
+        if cli.audit_file:
+            audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2))
     preview = {"mode": "EXECUTE" if cli.execute else "PREVIEW_ONLY", "mode_name": mode,
                "config": config, "gpu_ids": gpu_ids, "output": str(output), "command": shlex.join(command), "preflight": audit}
     print(json.dumps(preview, ensure_ascii=False, indent=2), flush=True)
+    if audit is not None and not audit["ready_for_training"]:
+        print("Training assets are incomplete; no samples were dropped and no training was started.", file=sys.stderr)
+        raise SystemExit(1)
     if not cli.execute:
         return
     if cli.resume:
@@ -173,7 +195,13 @@ def main():
             raise ValueError("Resume requires the same GPU process count for the ZeRO checkpoint")
     elif output.exists():
         raise FileExistsError("Choose a new run name or explicitly resume")
+    pair_file = record / "scene_pairs.json"
+    if cli.resume and experiment["video_loss_weight"] > 0:
+        if not pair_file.is_file() or json.loads(pair_file.read_text()) != pair_plan:
+            raise ValueError("Saved foresight selections differ from the current dataset/assets")
     record.mkdir(parents=True, exist_ok=cli.resume)
+    if experiment["video_loss_weight"] > 0 and not cli.resume:
+        pair_file.write_text(json.dumps(pair_plan, ensure_ascii=False, indent=2))
     data_yaml.write_text(yaml.safe_dump(audit["datasets"]))
     def git(*args):
         return subprocess.run(["git", *args], text=True, capture_output=True, check=True).stdout.strip()

@@ -14,10 +14,10 @@
 
 问答数据中的 `human` 和 `gpt` 是输入、回答的角色字段。回答沿用数据集标注，字段名不表示调用 GPT 生成数据。
 
-当前 foresight 小规模清单由 `scripts/3d/preprocessing/prepare_foresight_data.py` 生成，详细配置见 `docs/foresight.md`。Wan2.2 prompt 导出使用本目录的 `export_wan22_prompt_embedding.py`；离线特征读取和验证场景补齐入口在 `wan_offline_tools/`。
+foresight 训练直接读取原版处理后的标注，由加载层选择视频监督片段，不需要额外转换问答格式。Wan2.2 prompt 导出使用本目录的 `export_wan22_prompt_embedding.py`；离线特征读取和验证场景补齐入口在 `wan_offline_tools/`。
 
 训练使用 uniform32 抽帧。缓存和元数据需要使用同一份帧列表；不要删减原始元数据后继续复用旧缓存。
 
-## Foresight 配帧
+## 可选配帧清单导出
 
-`prepare_foresight_data.py` 接收训练/验证标注路径和观测缓存 ID，为相同场景资产上的文本生成任务建立留出片段清单，不限制数据集名称。已有 ScanQA 清单无需重建。参数和格式见 [foresight](../../../docs/foresight.md)。
+`prepare_foresight_data.py` 是已有的离线筛选与清单导出工具，可用于固定子集或检查历史实验。完整训练无需运行该工具；默认入口保留全部标注，并在任何训练场景缺资源或无法配帧时明确报错。该工具会筛选符合条件的场景，不应把它的输出误认为未筛选的全量数据。

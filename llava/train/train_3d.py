@@ -208,6 +208,9 @@ class DataArguments:
     min_xyz_range: List[float] = field(default_factory=lambda: [-15, -15, -5])
     max_xyz_range: List[float] = field(default_factory=lambda: [15, 15, 5])
 
+    foresight_pair_cache: Optional[str] = field(default=None)
+    foresight_max_translation: float = field(default=0.5)
+    foresight_max_rotation: float = field(default=30.0)
     frame_sampling_strategy: str = 'uniform' # uniform, mc32, mc24
 
 
@@ -1669,12 +1672,21 @@ class LazySupervisedDataset(Dataset):
             data_dict["box_label"] = box_label
         if getattr(self.data_args, "foresight_video_loss_weight", 0.) > 0:
             from llava.train.foresight_data import load_teacher_pixels
+            from llava.train.foresight_sampling import ScenePairSampler
             if self.data_args.frame_sampling_strategy != "uniform":
-                raise ValueError("Foresight video supervision requires the recorded uniform observation selection")
+                raise ValueError("Foresight video supervision requires uniform observation selection")
             selected = self.video_processor.sample_frame_files(
                 self.list_data_dict[i]["video"], force_sample=self.data_args.force_sample,
                 frames_upbound=self.data_args.frames_upbound)
-            data_dict["foresight_pixels"] = load_teacher_pixels(self.list_data_dict[i],
+            if not hasattr(self, "foresight_sampler"):
+                self.foresight_sampler = ScenePairSampler(self.video_processor,
+                    frames=self.data_args.foresight_video_frames,
+                    max_translation=self.data_args.foresight_max_translation,
+                    max_rotation=self.data_args.foresight_max_rotation,
+                    cache_path=self.data_args.foresight_pair_cache)
+            pair = self.foresight_sampler.for_row(self.list_data_dict[i], selected)
+            teacher_row = dict(self.list_data_dict[i], foresight=pair)
+            data_dict["foresight_pixels"] = load_teacher_pixels(teacher_row,
                 self.data_args.foresight_video_height, self.data_args.foresight_video_width,
                 self.data_args.foresight_video_frames, observed_frames=selected)
         return data_dict

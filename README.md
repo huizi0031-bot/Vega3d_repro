@@ -30,7 +30,7 @@
 
 已完成模型接入、三种训练模式、数据检查、保存与恢复接口，以及 CPU 回归检查。foresight 链路已在双卡上完成两个优化器步骤并正常保存；通用入口已通过三种模式的真实样本加载。尚未完成完整训练、三组对照和验证集评测，目前没有理解能力提升的结果。
 
-当前示例为 ScanQA：400 条训练问答、20 个场景；100 条验证问答、5 个独立场景。训练特征齐备，验证特征尚缺 5 个场景。该规模用于试跑，不作为完整效果实验。
+默认配置使用原版 VEGA 的完整 ScanQA 标注：训练 26,515 条问答、562 个场景；验证 4,675 条问答、71 个场景。已有双卡试跑使用 400 条训练问答和 100 条验证问答；全量训练尚未执行。全量资源是否齐备，以数据检查报告为准。
 
 ## 1. 获取代码与资源
 
@@ -52,9 +52,9 @@ data/
     Qwen3.5-2B-Language/           # 已导出的语言权重和 tokenizer
     siglip-so400m-patch14-384/     # 语义视觉权重
     Wan2.2-TI2V-5B/               # DiT、VAE 等原模型文件
-  scanqa_foresight/
-    train_paired.jsonl            # 三组实验共用
-    val_original.json
+  processed/
+    scanqa_train_llava_style.json # 原版 VEGA 训练标注
+    scanqa_val_llava_style.json   # 原版 VEGA 验证标注
   embodiedscan/
     embodiedscan_infos_train.pkl
     embodiedscan_infos_val.pkl
@@ -70,7 +70,7 @@ data/
 
 特征提取还需要 `llava/model/multimodal_generative_encoder/wan22_prompt_embedding.pt`，该缓存不在 Git 中，应一并复制。已有观测特征时，训练不调用特征提取工具。
 
-迁移软链接时复制其实际文件，或在新机器重新建立链接。场景元数据中的完整帧列表要保留；实际读取的 RGB、深度、位姿和教师目标图像必须齐全，观测帧顺序必须与缓存一致。当前数据清单无需重新生成，`scene_pairs.json` 仅作配帧汇总。
+迁移软链接时复制其实际文件，或在新机器重新建立链接。场景元数据中的完整帧列表要保留；实际读取的 RGB、深度、位姿和教师目标图像必须齐全，观测帧顺序必须与缓存一致。原版任务标注保持不变，不需要生成 `train_paired.jsonl`。这里的原版标注指 VEGA 已支持的 `*_llava_style.json`，不是未经原版预处理的 ScanQA 发布文件。
 
 ## 2. 安装 Python 环境
 
@@ -96,15 +96,26 @@ python -c 'import torch; print(torch.__version__, torch.version.cuda, torch.cuda
 以下命令在仓库根目录执行，使用 [foresight.yaml](configs/3d/foresight.yaml)：
 
 ```bash
-python scripts/3d/train/train_scene_understanding.py --mode video --check-data
+python scripts/3d/train/train_scene_understanding.py \
+  --mode video --check-data --audit-file results/data_audit.json
 python scripts/3d/train/train_scene_understanding.py --mode video --check-loader
 ```
 
-`--check-data` 检查标注、权重、训练缓存是否存在，以及配帧和图像文件；`--check-loader` 额外读取一条真实样本，核对实际选帧、缓存和教师输入。video 模式的教师张量应为 `[1,3,5,256,320]`，检查输出应包含 `cuda_initialized: false`、`optimizer_steps: 0`。单样本检查不等于逐一验证全部缓存内容。
+`--check-data` 读取完整标注，逐场景检查观测 RGB、深度、位姿和场景几何参数，核对离线特征的场景、协议、尺寸及帧顺序，并为 video 模式自动选择监督片段。缺失缓存、损坏文件或找不到合格片段都会列入报告；存在训练错误时退出码为 1，不启动训练，也不删样本。验证资源错误单独报告，不阻止仅训练。检查不扫描离线特征张量的全部数值；实际读取时仍会检查有限值。
 
-换同类文本任务时，修改 `data.train`、`data.validation`，并按 [数据格式](docs/foresight.md) 准备样本。支持 JSON、JSONL 和多数据集 YAML。当前读取层仍要求 ScanNet / EmbodiedScan 场景资产，单独的 MP4 加问答不能直接替代 RGB-D 和相机数据。foresight 尚未接入定位 proposal 分支和动作头。
+自动选帧保留原版 uniform32 观测。锚点优先选择靠近扫描中部的观测帧，目标取保存序列中紧随其后的四张图像；目标不能与观测重叠，相对锚点最大位移为 0.5m、最大旋转为 30°。不强制数字编号间隔；间隔由已有抽帧数据决定。同一场景的问答复用一段监督片段。
 
-## 4. 两步试跑与训练
+`--check-loader` 在同样的全量检查通过后，额外读取一条真实样本。video 模式的教师张量应为 `[1,3,5,256,320]`，输出包含 `cuda_initialized: false`、`optimizer_steps: 0`。该命令不加载视频教师、不进行优化。
+
+配置中的 `data.train`、`data.validation` 支持原版 JSON、JSONL 和 datasets YAML。全量训练使用 `sampling_strategy: all`，不设样本数或场景数上限。切换同类文本任务时替换标注路径；底层仍要求 ScanNet / EmbodiedScan 场景资产。foresight 尚未接入定位 proposal 分支和动作头。
+
+```bash
+python scripts/3d/train/train_scene_understanding.py \
+  --mode video --data-path /path/to/train.json \
+  --validation-path /path/to/val.json --check-data
+```
+
+## 4. 全量训练
 
 下例使用物理 GPU `2,3`，按实际空闲卡调整。先预览命令：
 
@@ -120,7 +131,7 @@ python scripts/3d/train/train_scene_understanding.py \
   --mode video --gpus 2,3 --run-name foresight-smoke --max-steps 2 --execute
 ```
 
-试跑正常退出并生成 checkpoint 后，以新名称分别训练三组。以下命令使用相同配置、初始权重和数据；每组默认训练 1 epoch，按顺序执行：
+数据检查通过后，可先进行上述两步试跑；全量训练使用新名称重新开始。以下命令读取完整 ScanQA 标注，使用相同初始权重和公共参数，每组训练 1 epoch，按顺序执行：
 
 ```bash
 python scripts/3d/train/train_scene_understanding.py --mode baseline --gpus 2,3 --run-name baseline --execute
@@ -133,7 +144,7 @@ python scripts/3d/train/train_scene_understanding.py --mode video    --gpus 2,3 
 | 参数 | 当前值 |
 |---|---|
 | 每卡 batch / 全局 batch | 1 / 8；两卡时累积 4 次 |
-| 训练长度 | 1 epoch；当前 400 条数据对应约 50 个优化器步骤 |
+| 训练长度 | 1 epoch，`max_steps: -1`；步数由完整标注条数和全局 batch 决定 |
 | 学习率 | 常规模块 `1e-5`；视觉塔 `2e-6`；foresight `1e-4` |
 | 优化器 / 调度 | AdamW；cosine；warmup ratio `0.03` |
 | 精度与显存设置 | BF16、SDPA、梯度检查点、ZeRO-3 |
@@ -142,14 +153,16 @@ python scripts/3d/train/train_scene_understanding.py --mode video    --gpus 2,3 
 
 全局 batch 必须能被 `GPU 数 × 每卡 batch` 整除。每个进程单独持有冻结 Wan 教师，教师不由 ZeRO-3 分片。
 
-输出位于 `checkpoints/<run-name>/`，配置、数据和源码哈希、包版本、日志、退出状态保存在其中的 `foresight_record/`。同名目录不会直接覆盖。中断恢复在原命令后加 `--resume`，要求有周期 checkpoint，且配置、数据、源码、进程数和训练参数保持一致。两步试跑设置不同于完整训练，正式训练使用新名称从相同初始权重开始。
+输出位于 `checkpoints/<run-name>/`，配置、数据和源码哈希、包版本、日志、退出状态保存在其中的 `foresight_record/`。video 模式另存 `scene_pairs.json`，只记录每场景的选帧结果，不复制或修改问答标注；所有训练进程读取同一份记录。同名目录不会直接覆盖。中断恢复在原命令后加 `--resume`，要求有周期 checkpoint，且配置、数据、源码、进程数和训练参数保持一致。恢复时还会核对选帧记录及已检查场景资产的指纹。两步试跑设置不同于完整训练，正式训练使用新名称从相同初始权重开始。
 
-## 5. 补齐验证特征与评估
+## 5. 特征检查与评估
 
-当前验证清单缺少 `scene0011_00`、`scene0064_00`、`scene0084_00`、`scene0249_00`、`scene0377_00` 的离线特征。训练检查会报告这些场景，训练本身不依赖其缓存；推理前必须补齐。
+训练和验证都需要原 VEGA 分支的离线 Wan 观测特征。按完整标注检查缺失场景，已有缓存不重复提取。提取是独立的 GPU 操作：
 
 ```bash
+python wan_offline_tools/extract_scene_features.py --split train --check-only
 python wan_offline_tools/extract_scene_features.py --split validation --check-only
+python wan_offline_tools/extract_scene_features.py --split train --gpu 2 --execute
 python wan_offline_tools/extract_scene_features.py --split validation --gpu 2 --execute
 ```
 
@@ -160,7 +173,7 @@ python wan_offline_tools/extract_scene_features.py --split validation --gpu 2 --
 ```bash
 python scripts/3d/eval/eval_scene_qa.py \
   --model-path checkpoints/foresight \
-  --question-file data/scanqa_foresight/val_original.json \
+  --question-file data/processed/scanqa_val_llava_style.json \
   --answer-file results/foresight.jsonl --gpu 2 --execute
 
 python llava/eval/eval_scanqa.py --input-file results/foresight.jsonl
@@ -176,7 +189,7 @@ ScanQA 计分另需 `data/processed/scanqa_val_llava_style.json` 中的多参考
 |---|---|
 | `llava/model/`、`llava/train/` | 模型、foresight、数据加载与训练 |
 | `scripts/3d/train/` | 统一训练入口、参数与检查 |
-| `scripts/3d/preprocessing/` | 数据转换、foresight 配帧与模型资源导出 |
+| `scripts/3d/preprocessing/` | 原版数据转换、可选清单导出与模型资源导出 |
 | `scripts/3d/eval/`、`llava/eval/` | 回答生成和任务计分 |
 | `scripts/visualization/` | Wan 观测特征可视化 |
 | `wan_offline_tools/` | 特征提取、模型准备和训练兼容接口 |
