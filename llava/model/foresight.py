@@ -53,7 +53,7 @@ class ForesightSlots(nn.Module):
                     raise ValueError("No answer tokens remain; refusing to train foresight on an empty answer")
                 cut = int(supervised[0])
                 if (target[cut:int(supervised[-1])+1] == IGNORE_INDEX).any():
-                    raise ValueError("Foresight pilot requires a single contiguous answer suffix")
+                    raise ValueError("Foresight requires a single contiguous answer suffix")
             if max_length is not None and len(row) + len(query) > max_length:
                 raise ValueError("Prompt + answer + foresight queries exceeds model_max_length")
             rows.append(torch.cat((row[:cut], query, row[cut:])))

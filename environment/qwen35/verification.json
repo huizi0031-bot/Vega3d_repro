@@ -1,0 +1,44 @@
+{
+  "python": "3.10.18",
+  "packages_verified": 156,
+  "torch_version": "2.6.0+cu124",
+  "torch_cuda": "12.4",
+  "independent_prefix": true,
+  "user_site_enabled": false,
+  "source_shared_libraries_loaded": false,
+  "cuda_initialized": false,
+  "modules": {
+    "torch": "lib/python3.10/site-packages/torch/__init__.py",
+    "torchvision": "lib/python3.10/site-packages/torchvision/__init__.py",
+    "torchaudio": "lib/python3.10/site-packages/torchaudio/__init__.py",
+    "PIL": "lib/python3.10/site-packages/PIL/__init__.py",
+    "numpy": "lib/python3.10/site-packages/numpy/__init__.py",
+    "transformers": "lib/python3.10/site-packages/transformers/__init__.py",
+    "accelerate": "lib/python3.10/site-packages/accelerate/__init__.py",
+    "deepspeed": "lib/python3.10/site-packages/deepspeed/__init__.py",
+    "diffusers": "lib/python3.10/site-packages/diffusers/__init__.py",
+    "torch_scatter": "lib/python3.10/site-packages/torch_scatter/__init__.py",
+    "cv2": "lib/python3.10/site-packages/cv2/__init__.py",
+    "av": "lib/python3.10/site-packages/av/__init__.py",
+    "decord": "lib/python3.10/site-packages/decord/__init__.py",
+    "yaml": "lib/python3.10/site-packages/yaml/__init__.py",
+    "timm": "lib/python3.10/site-packages/timm/__init__.py",
+    "peft": "lib/python3.10/site-packages/peft/__init__.py",
+    "datasets": "lib/python3.10/site-packages/datasets/__init__.py",
+    "tensorboard": "lib/python3.10/site-packages/tensorboard/__init__.py",
+    "typer": "lib/python3.10/site-packages/typer/__init__.py",
+    "llava.model.language_model.llava_qwen": "llava/model/language_model/llava_qwen.py",
+    "llava.train.train_3d": "llava/train/train_3d.py",
+    "llava.model.multimodal_generative_encoder.wan22_foresight": "llava/model/multimodal_generative_encoder/wan22_foresight.py"
+  },
+  "checks": {
+    "cpu_tests": {
+      "exit_code": 0,
+      "log": "/data/zhdu/vega3d_repro/envs/qwen35-reproduction/reproduction/cpu_tests.log"
+    },
+    "data_loader": {
+      "exit_code": 0,
+      "log": "/data/zhdu/vega3d_repro/envs/qwen35-reproduction/reproduction/data_loader.log"
+    }
+  }
+}

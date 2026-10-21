@@ -1,0 +1,2 @@
+# Complete environment lock. Install with environment/qwen35/install.sh.
+-r environment/qwen35/requirements.lock.txt

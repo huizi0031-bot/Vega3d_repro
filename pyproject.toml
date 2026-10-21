@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vega3d-foresight"
 version = "0.1.0"
-description = "ScanQA spatial understanding with Qwen3.5 and frozen Wan2.2 supervision"
+description = "VEGA-3D scene understanding with Qwen3.5, Wan2.2 and foresight supervision"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}

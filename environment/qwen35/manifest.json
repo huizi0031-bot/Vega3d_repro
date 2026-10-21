@@ -1,0 +1,1441 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-21T03:30:02.717184+00:00",
+  "python": "3.10.18",
+  "system": "Linux",
+  "machine": "x86_64",
+  "torch_cuda": "12.4",
+  "source_platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+  "source_prefixes": [
+    "/data/zhdu/vega3d_repro/envs/vega3d-qwen35",
+    "/data/zhdu/vega3d_repro/envs/vega3d"
+  ],
+  "runtime_sha256": "36cb60c685f013f29a4a7baac281648d4dcf7b64a06e1ca4b2e40fa4970806f7",
+  "wheels": [
+    {
+      "filename": "accelerate-1.12.0-py3-none-any.whl",
+      "sha256": "d8f85bfe2d54ffbd679056da3925175124a9afc3ef25b54e332158aaeaf954f0",
+      "bytes": 448923,
+      "name": "accelerate",
+      "version": "1.12.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "aiohappyeyeballs-2.7.1-py3-none-any.whl",
+      "sha256": "949589e530c31db74301eda5a2e5a2795b76b20690ae9bc9df2875c85d73caac",
+      "bytes": 16561,
+      "name": "aiohappyeyeballs",
+      "version": "2.7.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "aiohttp-3.14.4-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "d090ab1217982d2c7c6725ef8956d41fac1b249e5c6a6f050682ed00e6715c32",
+      "bytes": 2091842,
+      "name": "aiohttp",
+      "version": "3.14.4",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "aiosignal-1.4.0-py3-none-any.whl",
+      "sha256": "b5b82dd31434c2bb2e7b265d128e21be4fe542d8079581b2e9b6547e2491788a",
+      "bytes": 8218,
+      "name": "aiosignal",
+      "version": "1.4.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+      "sha256": "6da64630b34d175cd7cc3a1b76302ade7d316f5f040a003d64bccf087fedd24e",
+      "bytes": 5637,
+      "name": "annotated-doc",
+      "version": "0.0.5",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "annotated_types-0.8.0-py3-none-any.whl",
+      "sha256": "b1a049b34ce7f2476bec98909bc3f3cdf44349c76f12e7118c56de3187b7c499",
+      "bytes": 14829,
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "anyio-4.12.1-py3-none-any.whl",
+      "sha256": "a6f742fa3e4433a75ba9ccee23008dba0072e6784902ed21ef03d84db852c5b5",
+      "bytes": 133715,
+      "name": "anyio",
+      "version": "4.12.1",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "async_timeout-5.0.1-py3-none-any.whl",
+      "sha256": "434c47c896a166513777eaf1a2ad38c89ff2755bf189fd767d62f0286c178745",
+      "bytes": 6886,
+      "name": "async-timeout",
+      "version": "5.0.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "attrs-26.1.0-py3-none-any.whl",
+      "sha256": "3d79ac07b4494f59e9e3e59ade0a0564e802e1097bcd895c72d17f88521dc121",
+      "bytes": 78473,
+      "name": "attrs",
+      "version": "26.1.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "av-17.1.0-cp310-cp310-manylinux_2_28_x86_64.whl",
+      "sha256": "d4e3984d57e5a4169c1cdee2222a6ad7378b8ba97c92182a1ad49716d82005aa",
+      "bytes": 40112276,
+      "name": "av",
+      "version": "17.1.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "bitsandbytes-0.47.0-py3-none-manylinux_2_24_x86_64.whl",
+      "sha256": "f4c8e1ec8a75ed27dee0797cd205675cc08916d2e0d5eac60438f7f2bbb1ada3",
+      "bytes": 70552839,
+      "name": "bitsandbytes",
+      "version": "0.47.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "certifi-2026.7.22-py3-none-any.whl",
+      "sha256": "db0baaaf0432f3b1e54859bbd4ba1110a98bdb3f2470f922819033a16bf05bba",
+      "bytes": 144674,
+      "name": "certifi",
+      "version": "2026.7.22",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "charset_normalizer-3.5.2-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "67d140db4852ac5be3a9ce6a66f670d5f3e7862b90b58895fc5f29bdef24d313",
+      "bytes": 301009,
+      "name": "charset-normalizer",
+      "version": "3.5.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "click-8.5.0-py3-none-any.whl",
+      "sha256": "10bd4456a6f73fb789490c5c3bd0e717e73c442aa45e6c0a13765a70fff6cb3c",
+      "bytes": 148927,
+      "name": "click",
+      "version": "8.5.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "cloudpickle-3.1.2-py3-none-any.whl",
+      "sha256": "d90d608e930091cc300c02c097413372f5e18a52208195d3d17d584e590d7603",
+      "bytes": 25888,
+      "name": "cloudpickle",
+      "version": "3.1.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "conda_pack-0.9.2-py3-none-any.whl",
+      "sha256": "54b89977e2766e6bd491b43253124603291713bb54f26eb182ba8c76cae515b8",
+      "bytes": 57123,
+      "name": "conda-pack",
+      "version": "0.9.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "contourpy-1.3.2-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "261bb3a76ec02fc4811b68fdf3fea1a808ffb67c1d38c1d432f646cf91f5151f",
+      "bytes": 360995,
+      "name": "contourpy",
+      "version": "1.3.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "cycler-0.12.1-py3-none-any.whl",
+      "sha256": "0415a6048b6b13f1fb33e85642f68eeb931288917c6cb7dc9c36fe22d5a3cb08",
+      "bytes": 9317,
+      "name": "cycler",
+      "version": "0.12.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "datasets-2.16.1-py3-none-any.whl",
+      "sha256": "4a36b73240e69923bf34aabb0c9ff3515a8863981504af382835a993e3d8d080",
+      "bytes": 601578,
+      "name": "datasets",
+      "version": "2.16.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "decord-0.6.0-py3-none-manylinux2010_x86_64.whl",
+      "sha256": "51997f20be8958e23b7c4061ba45d0efcd86bffd5fe81c695d0befee0d442976",
+      "bytes": 13602299,
+      "source": "Compatible same-version upstream wheel; installed internal tag unsupported: ['cp36-cp36m-manylinux2010_x86_64']",
+      "name": "decord",
+      "version": "0.6.0",
+      "layer": "base"
+    },
+    {
+      "filename": "deepspeed-0.16.9-py3-none-any.whl",
+      "sha256": "7a726dc9de165b303d4ec684cd66b8197907882a966acfab85d0f9f24e885076",
+      "bytes": 1907953,
+      "name": "deepspeed",
+      "version": "0.16.9",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "diffusers-0.30.3-py3-none-any.whl",
+      "sha256": "e5b386c84ca057eaf3743d22e3d7ac8fa3ee4c579a2180b3004361ca8be4c3be",
+      "bytes": 3181108,
+      "name": "diffusers",
+      "version": "0.30.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "dill-0.3.7-py3-none-any.whl",
+      "sha256": "378295d2411fd099ec097f7ea7ac919c168d6b622928e8a83d86094168b88f7c",
+      "bytes": 130683,
+      "name": "dill",
+      "version": "0.3.7",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "docstring_parser-0.18.0-py3-none-any.whl",
+      "sha256": "9fe3617f229d47b980640e40030fd06935ad9b585d05fd968011558ace8ad1ea",
+      "bytes": 25503,
+      "name": "docstring-parser",
+      "version": "0.18.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "easydict-1.13-py3-none-any.whl",
+      "sha256": "edc4124bb2267ed7e0fa32835625032b2e69bc78dbd8e32969985f6085d3145a",
+      "bytes": 7419,
+      "name": "easydict",
+      "version": "1.13",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "einops-0.6.1-py3-none-any.whl",
+      "sha256": "735b5ea11c3ec65e4daa9c1205f872467f3e9373a0fb3a998dabf01ba6352044",
+      "bytes": 47776,
+      "name": "einops",
+      "version": "0.6.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "einops_exts-0.0.4-py3-none-any.whl",
+      "sha256": "6798a1672271c51bcf398b5ceee0ca50437114d6130863fb4a9494e3d4c82aba",
+      "bytes": 4141,
+      "name": "einops-exts",
+      "version": "0.0.4",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "exceptiongroup-1.3.1-py3-none-any.whl",
+      "sha256": "53b38a5806f89c78d25bc675b7e4fe445e8b11835a17c55623a4ab402ab12677",
+      "bytes": 18866,
+      "name": "exceptiongroup",
+      "version": "1.3.1",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "fastapi-0.125.0-py3-none-any.whl",
+      "sha256": "7a26925e9dcb8ca788c5658a19650d1e0b1ea94dcf0839a55244054e7d2e1d74",
+      "bytes": 142658,
+      "name": "fastapi",
+      "version": "0.125.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "fasteners-0.20-py3-none-any.whl",
+      "sha256": "cf868487406e8ad142045190eb06900de078b29ad278eb6e9c6d3afc5d74f1f4",
+      "bytes": 20977,
+      "name": "fasteners",
+      "version": "0.20",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "filelock-3.20.3-py3-none-any.whl",
+      "sha256": "fe093c2c8773f73a01ea50d8527850671e4b6ec58bc8358a23a2ab76e6d5b2f7",
+      "bytes": 18484,
+      "name": "filelock",
+      "version": "3.20.3",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "fire-0.7.1-py3-none-any.whl",
+      "sha256": "5a10eac69a272eff9fed30d746725e32f56ecc0a4f1eab9abf61f387fdb0ac78",
+      "bytes": 130838,
+      "name": "fire",
+      "version": "0.7.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "fonttools-4.65.0-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "516ac84c9f9e44bffbd17a71179664fe6a56553c9422cc7aacf6ecae3e1f0325",
+      "bytes": 6176277,
+      "name": "fonttools",
+      "version": "4.65.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "frozenlist-1.8.0-cp310-cp310-manylinux_2_5_x86_64.whl",
+      "sha256": "3d0c50fed6a3f54c2060827cda26cdd2fde9c4e393c7baf2eaa3fc6c5321cf41",
+      "bytes": 244449,
+      "name": "frozenlist",
+      "version": "1.8.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "fsspec-2023.10.0-py3-none-any.whl",
+      "sha256": "bf593bc560016599c933fc3d76ac7de371b5d6711bb84dfc94652f2d863a38df",
+      "bytes": 194588,
+      "name": "fsspec",
+      "version": "2023.10.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "ftfy-6.3.1-py3-none-any.whl",
+      "sha256": "b0c38d6d74decdaf9271f5198e5a618861d30fefd930d0f6f33818c78ddb4d7e",
+      "bytes": 49965,
+      "name": "ftfy",
+      "version": "6.3.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "gitdb-4.0.12-py3-none-any.whl",
+      "sha256": "5836ff1171c7ed838d36cc2fe012d2f24ac88c4a3797c4c59d1638c07468a70e",
+      "bytes": 71359,
+      "name": "gitdb",
+      "version": "4.0.12",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "GitPython-3.2.0-py3-none-any.whl",
+      "sha256": "b31bc347a7deb692973093627b7f249341ae091ee6d6a4ebe52d7f757fce7f53",
+      "bytes": 268143,
+      "name": "gitpython",
+      "version": "3.2.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "gradio_client-0.2.9-py3-none-any.whl",
+      "sha256": "29d4635410017f030cf942b0da89df5b0aec36ff797185768c6621160bfae68c",
+      "bytes": 301362,
+      "name": "gradio-client",
+      "version": "0.2.9",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "grpcio-1.76.0-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "01768e2ff4087442a3dc9d2aea94450925a9aece0280e860360ea31b046a435b",
+      "bytes": 7279320,
+      "name": "grpcio",
+      "version": "1.76.0",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "h11-0.16.0-py3-none-any.whl",
+      "sha256": "733309b7d0a037e319610afd8ea40132793c045b85ef60491de33ad0c743d04e",
+      "bytes": 41568,
+      "name": "h11",
+      "version": "0.16.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "hf_transfer-0.1.9-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "522c4d7bc7831c7937573da14a1e1f4829f6ff6b7d19328088138878f0e04e0e",
+      "bytes": 3904735,
+      "name": "hf-transfer",
+      "version": "0.1.9",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "hf_xet-1.7.0-cp38-abi3-manylinux_2_17_x86_64.whl",
+      "sha256": "2042fc28be9c3cc3230c1ebd3b1ad80d4cae2ecbe5d69e7dd13857cd9da5e235",
+      "bytes": 4616395,
+      "name": "hf-xet",
+      "version": "1.7.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "hjson-3.1.0-py3-none-any.whl",
+      "sha256": "814fb006e27458a099273bc3f8d91ae5476e6ab7c73f0e7fca54129406e6c084",
+      "bytes": 60730,
+      "name": "hjson",
+      "version": "3.1.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "httpcore-1.0.9-py3-none-any.whl",
+      "sha256": "be9f7199d07068239528a6a9f7f881a893ef37fd8ab141c692dd2f274e46f267",
+      "bytes": 90583,
+      "name": "httpcore",
+      "version": "1.0.9",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "httpx-0.28.1-py3-none-any.whl",
+      "sha256": "0c9dfd83bc08f1274c829a6e038fa334527130498faeda9c8e9bed19ae945b1e",
+      "bytes": 85160,
+      "name": "httpx",
+      "version": "0.28.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "huggingface_hub-1.3.0-py3-none-any.whl",
+      "sha256": "bf17febcd8cb31dd03f2b515600f33d598374910119aa2cb063841955768f9a5",
+      "bytes": 626017,
+      "name": "huggingface-hub",
+      "version": "1.3.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "idna-3.20-py3-none-any.whl",
+      "sha256": "ddfe0f7de9563f0d36a0859b2e5efacd3a31886c1170c720e2726eeaf57ed964",
+      "bytes": 79474,
+      "name": "idna",
+      "version": "3.20",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "ImageIO-2.38.0-py3-none-any.whl",
+      "sha256": "d36296296d6f9c4ffe73c37af49e1b54139088fab40e23fe9c355bb95f78807f",
+      "bytes": 382570,
+      "name": "imageio",
+      "version": "2.38.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "importlib_metadata-9.0.1-py3-none-any.whl",
+      "sha256": "8d96920a2931051dc2307830ce2dbfaff02fdf2a3a478f8ae3a3d910a0385248",
+      "bytes": 31555,
+      "name": "importlib-metadata",
+      "version": "9.0.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "Jinja2-3.1.6-py3-none-any.whl",
+      "sha256": "a36bb8f0e873a30cd0fcf673fbfbdc732e58fbcb5d16bab58fdc4464564eaf27",
+      "bytes": 159753,
+      "name": "jinja2",
+      "version": "3.1.6",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "joblib-1.6.0-py3-none-any.whl",
+      "sha256": "ff345c828f5b22fd49606816fa9f6f14a30aad0d1f4ae94ba4534a2ab2895c27",
+      "bytes": 350154,
+      "name": "joblib",
+      "version": "1.6.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "jsonschema-4.26.0-py3-none-any.whl",
+      "sha256": "c2c00135ebbe334c521709bbfeb4952ddf4065a6490bd0581f6d2bc3776b97d3",
+      "bytes": 108722,
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "jsonschema_specifications-2025.9.1-py3-none-any.whl",
+      "sha256": "3da6b1f86eb48c871876d7e859d7fee795f86317e25a3d27dcd00fd001de4fa2",
+      "bytes": 20269,
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "kiwisolver-1.5.1-cp310-cp310-manylinux_2_12_x86_64.whl",
+      "sha256": "12271fca6a105cbc7c6b67c74355944d48607f50b03f249eeb5a8e3c0eb34805",
+      "bytes": 1843582,
+      "name": "kiwisolver",
+      "version": "1.5.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "latex2mathml-3.81.1-py3-none-any.whl",
+      "sha256": "0aed381e81658162be47e6dea6f1cd34f7aae9137693428913797b10394bd044",
+      "bytes": 89217,
+      "name": "latex2mathml",
+      "version": "3.81.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "Markdown-3.10-py3-none-any.whl",
+      "sha256": "3c393f60315a4642e24a81caa560e71b155f8aaf88c4d88b298def67e50740b8",
+      "bytes": 120967,
+      "name": "markdown",
+      "version": "3.10",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "markdown_it_py-4.2.0-py3-none-any.whl",
+      "sha256": "6f872a8605dd91ae36737e983cf1644d301fe67ea075592970fa0bd93d4d7d99",
+      "bytes": 101095,
+      "name": "markdown-it-py",
+      "version": "4.2.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "markdown2-2.5.5-py3-none-any.whl",
+      "sha256": "320e5086074f3e1ccd69f42e494fd2a1e89acc28e8a6f62e1b4b7e4c94841e4a",
+      "bytes": 67210,
+      "name": "markdown2",
+      "version": "2.5.5",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "MarkupSafe-3.0.4-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "ebb18f608398d57831b477129c5c6883f8d415310cc4e4bf08bde60a37a316ab",
+      "bytes": 22149,
+      "name": "markupsafe",
+      "version": "3.0.4",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "matplotlib-3.10.9-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "aff33782b509c854643c54f26061a55dd2db61db18bb6bef67bde1ec7a129887",
+      "bytes": 9626545,
+      "name": "matplotlib",
+      "version": "3.10.9",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "mdurl-0.1.2-py3-none-any.whl",
+      "sha256": "af24e8ca97ecaeab2b8a88da68ad2792775562699a8abcd3e7e25dc8d7de66a1",
+      "bytes": 10782,
+      "name": "mdurl",
+      "version": "0.1.2",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "mpmath-1.3.0-py3-none-any.whl",
+      "sha256": "6b2159cf24c12181302fe71ca933fa1d5816e7bab7f10a10323948ca38aac3aa",
+      "bytes": 626772,
+      "name": "mpmath",
+      "version": "1.3.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "msgpack-1.2.3-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "41fd884a1978ca6a84229c0fa3ca9911ec454eb5e60c4074921156bb3de6879e",
+      "bytes": 512512,
+      "name": "msgpack",
+      "version": "1.2.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "multidict-6.9.1-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "23de26c98d3f45a12a38c4471fc66f0cbfa51539ffce17a6397eb9f892e75c3b",
+      "bytes": 338769,
+      "name": "multidict",
+      "version": "6.9.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "multiprocess-0.70.15-py310-none-any.whl",
+      "sha256": "33328849aa26ee13abbd332b8beb21af5f433a0118d5def1094bf1eb08dd59dc",
+      "bytes": 158748,
+      "name": "multiprocess",
+      "version": "0.70.15",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "networkx-3.4.2-py3-none-any.whl",
+      "sha256": "b2ffaa97dca458c3489618f6f084e74ecb07f042024bad435502a51a0816ca88",
+      "bytes": 1986202,
+      "name": "networkx",
+      "version": "3.4.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "ninja-1.13.2-py3-none-manylinux_2_17_x86_64.whl",
+      "sha256": "4e639f0eb7f4354c4ccd0beacd8dbe4a5db1f2822c81f191c6ef5a42f47afc38",
+      "bytes": 197402,
+      "name": "ninja",
+      "version": "1.13.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "numpy-1.26.1-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "dcf4ef4989f70259fc0880cfac606d4afa494e54348d93c14e8c63def3d926fb",
+      "bytes": 21024165,
+      "name": "numpy",
+      "version": "1.26.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cublas_cu12-12.4.5.8-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "1af3b918768281822fe731767356b4bcb57bfc5f93049a4c344f7aa676f535d9",
+      "bytes": 371876534,
+      "name": "nvidia-cublas-cu12",
+      "version": "12.4.5.8",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cuda_cupti_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "63824a95fbdb4dd6cdeb1c913ef115b59b68852ce6e099c319b2c2ae48c08d00",
+      "bytes": 15046018,
+      "name": "nvidia-cuda-cupti-cu12",
+      "version": "12.4.127",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cuda_nvrtc_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "ef2bff39fd2a5e4e220e2f92d542f2eafb821c87bf74265731361429761ae563",
+      "bytes": 26950881,
+      "name": "nvidia-cuda-nvrtc-cu12",
+      "version": "12.4.127",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cuda_runtime_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "6b2b0f281463c0ad78b93e949a0c8aeefe34d811124e6bd9a727858f0d30c876",
+      "bytes": 1075089,
+      "name": "nvidia-cuda-runtime-cu12",
+      "version": "12.4.127",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cudnn_cu12-9.1.0.70-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "c8f1cd15d111130d58bf0e9830c4d9ba7f971233572ab296ee41c0a161d43dbc",
+      "bytes": 684302901,
+      "name": "nvidia-cudnn-cu12",
+      "version": "9.1.0.70",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cufft_cu12-11.2.1.3-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "182e3571556f1066606f5139e39827151ac99e71d40ade29450bc8e706d4c27c",
+      "bytes": 218420006,
+      "name": "nvidia-cufft-cu12",
+      "version": "11.2.1.3",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_curand_cu12-10.3.5.147-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "47351b01a4b21adb27579d0e2c771e89dd7c271f5eb814b913d0fd562ecf53ea",
+      "bytes": 58789232,
+      "name": "nvidia-curand-cu12",
+      "version": "10.3.5.147",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cusolver_cu12-11.6.1.9-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "061fcf0f66cf775f9c15f1e29bce2f80b0dcfc3593bb3a7e21e8103c2160aad4",
+      "bytes": 132613196,
+      "name": "nvidia-cusolver-cu12",
+      "version": "11.6.1.9",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cusparse_cu12-12.3.1.170-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "f43cb264f82d0eb524f8212dc9b35041bfba9f45d1756f82febac36ed0c85227",
+      "bytes": 210990176,
+      "name": "nvidia-cusparse-cu12",
+      "version": "12.3.1.170",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_cusparselt_cu12-0.6.2-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "bf3db80109d16d760f4103d1f64c6f434a4ec8a314bc53221a5da4ed6b2cf7ed",
+      "bytes": 152347847,
+      "name": "nvidia-cusparselt-cu12",
+      "version": "0.6.2",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_ml_py-13.615.71-py3-none-any.whl",
+      "sha256": "b906f376fda4e8e827d65cc51874f00a49ea6bd87b0344e97896569e68f502e8",
+      "bytes": 70702,
+      "name": "nvidia-ml-py",
+      "version": "13.615.71",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_nccl_cu12-2.21.5-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "36792b77089d88cf032e0a687623c1d8ef0e767b3f807e92d6d21c1e207b6a1c",
+      "bytes": 191959695,
+      "name": "nvidia-nccl-cu12",
+      "version": "2.21.5",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_nvjitlink_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "e3eac82d93564066e2e2f91aa3058cb27aedb7143b740743787317804e590043",
+      "bytes": 22992575,
+      "name": "nvidia-nvjitlink-cu12",
+      "version": "12.4.127",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "nvidia_nvtx_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl",
+      "sha256": "284a4ca0c558d5c70aa6042e86348bf0a6898d380f1bdad7a28a070903cc3c02",
+      "bytes": 114009,
+      "name": "nvidia-nvtx-cu12",
+      "version": "12.4.127",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "open_clip_torch-3.3.0-py3-none-any.whl",
+      "sha256": "2858b58dac5cb5db18726906f2446c115c7687f7cb962079ad49b1eda91e9ee6",
+      "bytes": 1573279,
+      "name": "open-clip-torch",
+      "version": "3.3.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "opencv_python_headless-4.11.0.86-cp37-abi3-manylinux_2_17_x86_64.whl",
+      "sha256": "117ee2dc23a392da2f2642449134b0bcbb8ee6a09f3a3b18b2d368be9429ecdd",
+      "bytes": 55349544,
+      "name": "opencv-python-headless",
+      "version": "4.11.0.86",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "packaging-25.0-py3-none-any.whl",
+      "sha256": "ed7d2d4cddef3c9a823ef1b44cdb00a7589850246b3ff616f9a2165051f7806b",
+      "bytes": 76226,
+      "name": "packaging",
+      "version": "25.0",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pandas-2.3.3-cp310-cp310-manylinux_2_24_x86_64.whl",
+      "sha256": "b05f068c63a2992d5bfed861e62e7ec26c085b04fd69aecb6a845af2d59625c5",
+      "bytes": 14847322,
+      "name": "pandas",
+      "version": "2.3.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "peft-0.13.2-py3-none-any.whl",
+      "sha256": "c3303a54e27b93e6087aa95e3d5b2aa842a4e8f8077077eb6c8131adccfeffc7",
+      "bytes": 368679,
+      "name": "peft",
+      "version": "0.13.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pillow-12.3.0-cp310-cp310-manylinux_2_27_x86_64.whl",
+      "sha256": "d8ceb57be6b59ea0de41ff822497a10df477bac1937f6d61113454d7890be66f",
+      "bytes": 7645432,
+      "name": "pillow",
+      "version": "12.3.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pip-23.0.1-py3-none-any.whl",
+      "sha256": "651995156936ff3d12b8b5ba448aa8b3200e11ef5bdc460f6bbdacc36c999aa5",
+      "bytes": 2337859,
+      "name": "pip",
+      "version": "23.0.1",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "platformdirs-4.12.3-py3-none-any.whl",
+      "sha256": "95d4567e4d7faf73ac6d953895549c98773dd7139e49204561a3ea2230fad3a9",
+      "bytes": 36765,
+      "name": "platformdirs",
+      "version": "4.12.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "propcache-0.5.4-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "2c09813fcdff447e0e5c9646e2afd8731fa8ae7c936defed2a60ff6ef8b4dbb1",
+      "bytes": 249603,
+      "name": "propcache",
+      "version": "0.5.4",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "protobuf-7.36.2-cp310-abi3-manylinux2014_x86_64.whl",
+      "sha256": "5985f1e4be0ca9286949fd21573b8220f7b2f3827168c6f6f33cf55f501e1b72",
+      "bytes": 391327,
+      "name": "protobuf",
+      "version": "7.36.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "psutil-7.2.2-cp36-abi3-manylinux_2_12_x86_64.whl",
+      "sha256": "74e1816a58fd2321b562e6068baa67100434d379723004e88ca0b0d1e8e14b10",
+      "bytes": 177435,
+      "name": "psutil",
+      "version": "7.2.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "py_cpuinfo-9.0.0-py3-none-any.whl",
+      "sha256": "395f4a79bb303ce7683e5d50095de4d866489c70e7328e035f468328a3df2a92",
+      "bytes": 26465,
+      "name": "py-cpuinfo",
+      "version": "9.0.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pyarrow-25.0.1-cp310-cp310-manylinux_2_28_x86_64.whl",
+      "sha256": "54bd256adfd7394d5cec99bdf99aea5110fdc04793d7c0e19ca4b6ce490286f1",
+      "bytes": 56319932,
+      "name": "pyarrow",
+      "version": "25.0.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pyarrow_hotfix-0.7-py3-none-any.whl",
+      "sha256": "582a22f0995814ab1abca3e9e47ce25061da071ed0694c8e6cded32011b86c79",
+      "bytes": 8659,
+      "name": "pyarrow-hotfix",
+      "version": "0.7",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pydantic-2.14.1-py3-none-any.whl",
+      "sha256": "795d68bba4e84c146412ce237d063648c238f923a953c278550a9729af601fbb",
+      "bytes": 581522,
+      "name": "pydantic",
+      "version": "2.14.1",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pydantic_core-2.50.1-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "52148a42911968062fadaf0b25e6c763c7f168f2b39ae93dba7736fed7ed7516",
+      "bytes": 2285194,
+      "name": "pydantic-core",
+      "version": "2.50.1",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "Pygments-2.21.0-py3-none-any.whl",
+      "sha256": "f1f43584d46291811140a13b63421f9895886f1dcfac4f689065a49ad9ab44aa",
+      "bytes": 1433705,
+      "name": "pygments",
+      "version": "2.21.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pyparsing-3.3.3-py3-none-any.whl",
+      "sha256": "5c685286885e2055baf3b1c592956092b7063422718839e0fb7592edcbd8ed08",
+      "bytes": 151171,
+      "name": "pyparsing",
+      "version": "3.3.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "python_dateutil-2.9.0.post0-py3-none-any.whl",
+      "sha256": "56443f5dd03d51d3e83b55268fc6140d0fd4c68d41622ff6eea9f86509a02901",
+      "bytes": 243123,
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "pytz-2026.5-py3-none-any.whl",
+      "sha256": "e1cf2b52f6e0e77ea109a8229b67bed558818f732403883e14c0a1fc6711a093",
+      "bytes": 531736,
+      "name": "pytz",
+      "version": "2026.5",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "PyYAML-6.0.3-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "81c76fc7a3c7be6e51c0e9c232d08bafe3ed2157474c511c4dbf81e6737b7c8b",
+      "bytes": 866152,
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "ray-2.59.0-cp310-cp310-linux_x86_64.whl",
+      "sha256": "4dd842216d5b6d6ab2ebffacafcd72ab7301f7b36d35aa4b78b715f889675cca",
+      "bytes": 84718076,
+      "name": "ray",
+      "version": "2.59.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "referencing-0.37.0-py3-none-any.whl",
+      "sha256": "63df496c647d9537a2761e9e25c9846726eddba50427d0a1d9372b00e73fc7a4",
+      "bytes": 31584,
+      "name": "referencing",
+      "version": "0.37.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "regex-2026.9.29-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "bc696cc60119a051158bd2104e2a3a42d69479f6c83440c3c9626be18faded3a",
+      "bytes": 893455,
+      "name": "regex",
+      "version": "2026.9.29",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "requests-2.34.2-py3-none-any.whl",
+      "sha256": "773d7c954adc0c44fb433aa6e35c7baaddc65042fa12b86e99bb795549428db7",
+      "bytes": 83886,
+      "name": "requests",
+      "version": "2.34.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "rich-15.0.0-py3-none-any.whl",
+      "sha256": "013905232a80e3e1ebbf7be0b23b2d9bef1508579b0ebd54981a92ec64b5d597",
+      "bytes": 360839,
+      "name": "rich",
+      "version": "15.0.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "rpds_py-0.30.0-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "5754a68b0bff7e3539abd795602b44f4733df7a51f8c0108dfc8aa550389560f",
+      "bytes": 423107,
+      "name": "rpds-py",
+      "version": "0.30.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.whl",
+      "sha256": "c15fb47173b138fc70cef58a56009cb49c18d3f6e667d4299e88c53e8afaab7d",
+      "bytes": 554050,
+      "name": "safetensors",
+      "version": "0.8.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "scikit_learn-1.2.2-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "3bd308609038b9372a73194fa47135387f604643f89f3eabec4507497e8c96f0",
+      "bytes": 10878637,
+      "name": "scikit-learn",
+      "version": "1.2.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "scipy-1.15.3-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "57c459200270b82d129a5b9e715c4b05e732fdd034ec1378b4d088a86516c6a5",
+      "bytes": 42502865,
+      "name": "scipy",
+      "version": "1.15.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "sentencepiece-0.1.99-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "e75d595f7265732fc6875c2a621bc4c591170e67feb8c64b7b5a90545051ee8c",
+      "bytes": 1393565,
+      "name": "sentencepiece",
+      "version": "0.1.99",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "sentry_sdk-2.71.0-py3-none-any.whl",
+      "sha256": "91d819a177dd4f3d88b7ed614e8a8e954a3f2f4b9ceabf81bea06d60706a4c6c",
+      "bytes": 623209,
+      "name": "sentry-sdk",
+      "version": "2.71.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "setuptools-65.5.0-py3-none-any.whl",
+      "sha256": "fc9b3cfee37108e92adad6f69b0a4328f198285de071d1e13d733a5bf5019cc3",
+      "bytes": 1405656,
+      "name": "setuptools",
+      "version": "65.5.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "shellingham-1.5.4-py3-none-any.whl",
+      "sha256": "b802dedc927b232ea27a8c749cdfa7613c4d374c44af2fed9d36c37d083194a3",
+      "bytes": 10400,
+      "name": "shellingham",
+      "version": "1.5.4",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "shortuuid-1.0.13-py3-none-any.whl",
+      "sha256": "0ddefc46c168474fa727e679a3ba03c0a830c9aaec23a52f2ce6ce6e93269d61",
+      "bytes": 11390,
+      "name": "shortuuid",
+      "version": "1.0.13",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "six-1.17.0-py3-none-any.whl",
+      "sha256": "1d3bf1f82198d02546b3f38dd83e0433a230e70873d8626d2b2262a372585eee",
+      "bytes": 12595,
+      "name": "six",
+      "version": "1.17.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "smmap-5.0.3-py3-none-any.whl",
+      "sha256": "43ae35d5d54ff5cb516e63f99b77425682dd0e4925232058dd06f579529c1f42",
+      "bytes": 27519,
+      "name": "smmap",
+      "version": "5.0.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "starlette-0.50.0-py3-none-any.whl",
+      "sha256": "916a4ff99fafb573e705c1c822ee554beb40e6e37027c5a87709ad0b5e427e6e",
+      "bytes": 84483,
+      "name": "starlette",
+      "version": "0.50.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "svgwrite-1.4.3-py3-none-any.whl",
+      "sha256": "37b9f0c7afd6a0afbbc0d2ef517e112b2ee8855aefba554c2f57789b35f954c0",
+      "bytes": 78333,
+      "name": "svgwrite",
+      "version": "1.4.3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "sympy-1.13.1-py3-none-any.whl",
+      "sha256": "f9af0d1522e1ced2498b3ec7d8a3ce973f3fee73ba77cbf3ce484c78ad5bc4b0",
+      "bytes": 7436173,
+      "name": "sympy",
+      "version": "1.13.1",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "tensorboard-2.20.0-py3-none-any.whl",
+      "sha256": "d30f3df12dac8d35f3af936dfb4274f7d69c505a0ed92e772f5ab6d6ae37a9c1",
+      "bytes": 5718633,
+      "name": "tensorboard",
+      "version": "2.20.0",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "tensorboard_data_server-0.7.2-py3-none-manylinux_2_31_x86_64.whl",
+      "sha256": "7bf6df3257e8cd337f8e9071865bafca966b51d4a26ebb22e29d13bdf0793770",
+      "bytes": 7472956,
+      "name": "tensorboard-data-server",
+      "version": "0.7.2",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "termcolor-3.3.0-py3-none-any.whl",
+      "sha256": "baa432abd778957291cd4fa0bc3e50318adb738a15de1e85d3c8ab817e775b31",
+      "bytes": 8307,
+      "name": "termcolor",
+      "version": "3.3.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "threadpoolctl-3.7.0-py3-none-any.whl",
+      "sha256": "5fed1b3378e296eee237cc8ab2e8ce147626ec4c23f357e5189c872582eaa5c9",
+      "bytes": 31355,
+      "name": "threadpoolctl",
+      "version": "3.7.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "timm-1.0.30-py3-none-any.whl",
+      "sha256": "2b35c069f05c5f56128efcf4861e510c3100c9a073f5316020c1a683a1652bbd",
+      "bytes": 3067855,
+      "name": "timm",
+      "version": "1.0.30",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.whl",
+      "sha256": "f5c9102ff5725001573dbf7869c204d49471ccf17661bbcc9542a21e68e83a3d",
+      "bytes": 3557596,
+      "name": "tokenizers",
+      "version": "0.22.2",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "torch-2.6.0-cp310-cp310-linux_x86_64.whl",
+      "sha256": "4d9ef67b4a008bcd8a2da264aba35330022f8b8aa0576ba6439d5877828905c6",
+      "bytes": 814546835,
+      "name": "torch",
+      "version": "2.6.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "torch_scatter-2.1.2+pt26cu124-cp310-cp310-linux_x86_64.whl",
+      "sha256": "bdb310c89e500f71472e2c00757030e4dffc9fb388d0167b8427b2b256634caa",
+      "bytes": 14232254,
+      "name": "torch-scatter",
+      "version": "2.1.2+pt26cu124",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "torch_tb_profiler-0.4.3-py3-none-any.whl",
+      "sha256": "49c9301e09dac902ad0a7ce754b69e27eecacf76bc7e502b372e7d350ab817ed",
+      "bytes": 1266576,
+      "name": "torch-tb-profiler",
+      "version": "0.4.3",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "torchaudio-2.6.0-cp310-cp310-linux_x86_64.whl",
+      "sha256": "6839cb9ed96b89807ed0a7aca08e1bcd0912a02568ac0c8e536c5318c99c731f",
+      "bytes": 4003176,
+      "name": "torchaudio",
+      "version": "2.6.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "torchvision-0.21.0-cp310-cp310-linux_x86_64.whl",
+      "sha256": "ba10d5df75ecaab827a53b69d45d28efab8104744d366d21c63a9c855342c170",
+      "bytes": 8070235,
+      "name": "torchvision",
+      "version": "0.21.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "tqdm-4.70.1-py3-none-any.whl",
+      "sha256": "22c6c2d3ade5bb17e3a2871a963d2c4aaa672533b328516420288fda7f3ee3b8",
+      "bytes": 90482,
+      "name": "tqdm",
+      "version": "4.70.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "transformers-5.3.0-py3-none-any.whl",
+      "sha256": "dcc2e8bd462eef306322f3fc537aec75d57ec2ac8e3e17d03f8ad3c2159e70cf",
+      "bytes": 12811101,
+      "name": "transformers",
+      "version": "5.3.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "triton-3.2.0-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "69a51b7df1afa439cf7ca1ad8620cf43693f6b78cad6b59042c9080172bf0f66",
+      "bytes": 274862376,
+      "name": "triton",
+      "version": "3.2.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "typeguard-4.6.0-py3-none-any.whl",
+      "sha256": "d4f726474c95fa71456de88b24cc92153740d537de8716efeeb21367d6e4db98",
+      "bytes": 43103,
+      "name": "typeguard",
+      "version": "4.6.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "typer-0.27.3-py3-none-any.whl",
+      "sha256": "195845c529a45a3b79b8fac2eb81733f214338a6a340e2390b284312d7f44fab",
+      "bytes": 144775,
+      "name": "typer",
+      "version": "0.27.3",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "typer_slim-0.21.1-py3-none-any.whl",
+      "sha256": "9ac63f8bbdae48057addb6f6f1a4ea2b7b2f854c34afcebbd9d1e8036d6be358",
+      "bytes": 55200,
+      "name": "typer-slim",
+      "version": "0.21.1",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "sha256": "d8a0f94ae1a311af7cc7f845d78db1060487a6699f181dbe0d698161d3944a24",
+      "bytes": 55702,
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+      "sha256": "6b50607838f592140a9aa73d3769c86a92514d3874c7fe7105bc5fef2e71e98e",
+      "bytes": 16737,
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "layer": "overlay",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "tyro-1.0.16-py3-none-any.whl",
+      "sha256": "e0ab7d742557b838f04626c66b319d46369909173b00ea78a234b4043cc2daf9",
+      "bytes": 254139,
+      "name": "tyro",
+      "version": "1.0.16",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "tzdata-2025.3-py3-none-any.whl",
+      "sha256": "02a43ee00fbab9bac1470bc41784e67a228e6013bb75e98a0645beb2dd41c214",
+      "bytes": 376462,
+      "name": "tzdata",
+      "version": "2025.3",
+      "layer": "user",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "urllib3-1.26.20-py3-none-any.whl",
+      "sha256": "32244f4d418cefc179df3dc33c0aa214781c0cf9b4f3896974228487616e82f4",
+      "bytes": 165023,
+      "name": "urllib3",
+      "version": "1.26.20",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "uvicorn-0.54.0-py3-none-any.whl",
+      "sha256": "98da1d3127c902e054f5d055c9b1e1a07cec16ee3e448f22ce28d3a8271c0ac7",
+      "bytes": 99895,
+      "name": "uvicorn",
+      "version": "0.54.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "wandb-0.26.1-py3-none-manylinux_2_28_x86_64.whl",
+      "sha256": "b112230e7fb86c3312dc67e37c9c25afc7f228177a139506c98b12ad23cf21f5",
+      "bytes": 30443550,
+      "name": "wandb",
+      "version": "0.26.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "wavedrom-2.0.3.post3-py3-none-any.whl",
+      "sha256": "839eb7deb8094b360302e982a8e2394c3fa013df6e7fdaf2fc60134e1d148131",
+      "bytes": 36984,
+      "name": "wavedrom",
+      "version": "2.0.3.post3",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "wcwidth-0.9.2-cp310-abi3-manylinux_2_17_x86_64.whl",
+      "sha256": "cf346a1a5f80175302a5f1633e0b9255abca48a069d55f35b3950b7f523fcd7f",
+      "bytes": 877531,
+      "name": "wcwidth",
+      "version": "0.9.2",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "websockets-16.1.1-cp310-cp310-manylinux_2_5_x86_64.whl",
+      "sha256": "a4be4a614f509baa1618d9c65ca23592a03c7f943f0f0086f1d1008a759f22f9",
+      "bytes": 216726,
+      "name": "websockets",
+      "version": "16.1.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "wheel-0.48.0-py3-none-any.whl",
+      "sha256": "06bbfa6c5e4592197b6aecdd49246bd1285a52068894fee5a6177f19e1ae8143",
+      "bytes": 36967,
+      "name": "wheel",
+      "version": "0.48.0",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "xxhash-4.0.1-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "fe580a9f04da17a3043b6a18447917de305e409552ee0491841de3c1b4854dbd",
+      "bytes": 280250,
+      "name": "xxhash",
+      "version": "4.0.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "yarl-1.25.1-cp310-cp310-manylinux_2_17_x86_64.whl",
+      "sha256": "b5a7d4f22a43f30ea883a6073937c0f78c557835c05f6378d922886ef2b04139",
+      "bytes": 132473,
+      "name": "yarl",
+      "version": "1.25.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "filename": "zipp-4.1.1-py3-none-any.whl",
+      "sha256": "c8eeed2430c27d10f38b80f716bebd075fcbd284ef7c436bfe4c9ec22a0a5bff",
+      "bytes": 11566,
+      "name": "zipp",
+      "version": "4.1.1",
+      "layer": "base",
+      "source": "installed distribution; files copied without re-compiling"
+    },
+    {
+      "name": "absl-py",
+      "version": "2.5.1",
+      "layer": "addition",
+      "filename": "absl_py-2.5.1-py3-none-any.whl",
+      "sha256": "721200f2f0e9960f2ca9dc3a2a706b201f5f75d812c158f059cbbe29eeafbdb8",
+      "bytes": 137673,
+      "source": "PyPI wheel; fills dependency reported by source pip check"
+    },
+    {
+      "name": "werkzeug",
+      "version": "3.1.9",
+      "layer": "addition",
+      "filename": "werkzeug-3.1.9-py3-none-any.whl",
+      "sha256": "6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab",
+      "bytes": 228700,
+      "source": "PyPI wheel; fills dependency reported by source pip check"
+    }
+  ],
+  "excluded": [
+    {
+      "name": "flash-attn",
+      "version": "2.7.4.post1",
+      "layer": "base",
+      "excluded": "Unused legacy extension built for Torch 2.4; current model uses SDPA."
+    },
+    {
+      "name": "llava",
+      "version": "0.0.1.dev0",
+      "layer": "base",
+      "excluded": "Legacy placeholder distribution; current llava package comes from the repository."
+    },
+    {
+      "name": "vega-3d",
+      "version": "1.0.0",
+      "layer": "base",
+      "excluded": "Obsolete editable installation; install the supplied current repository instead."
+    }
+  ],
+  "source_pip_check": "tensorboard 2.20.0 requires absl-py, which is not installed.\ntensorboard 2.20.0 requires werkzeug, which is not installed."
+}

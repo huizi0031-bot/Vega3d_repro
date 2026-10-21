@@ -59,7 +59,7 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
         self.__dict__["_foresight_teacher_runtime"] = None
 
         # Only one grounding-head initializer. All dimensions follow Qwen3.5's
-        # config.hidden_size (2048 for Qwen3.5-1.7B).
+        # config.hidden_size (2048 for the current Qwen3.5-2B checkpoint).
         self.ground_head_type = getattr(config, "ground_head_type", None)
         hidden_size = config.hidden_size
 
@@ -186,11 +186,11 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
             )
 
         if self.foresight is not None and (use_object_proposals or dpo_forward):
-            raise ValueError("Foresight pilot currently supports single-turn QA, not grounding or DPO")
+            raise ValueError("Foresight supports single-turn text generation; object-proposal grounding and DPO are not connected")
 
         if self.foresight is not None and not foresight_prepared and past_key_values is None:
             if position_ids is not None and position_ids.ndim > 2:
-                raise ValueError("Foresight pilot uses 1D sequence positions; 3D mRoPE is unsupported")
+                raise ValueError("Foresight uses 1D sequence positions; 3D mRoPE is unsupported")
             if inputs_embeds is None:
                 inputs_embeds = self.get_input_embeddings()(input_ids)
             inputs_embeds, attention_mask, position_ids, labels, slots = self.foresight(
@@ -202,7 +202,7 @@ class LlavaQwen35ForCausalLM(Qwen3_5ForCausalLM, LlavaMetaForCausalLM):
                 return_dict, return_foresight_embeddings, logits_to_keep)
 
         if foresight_pixels is not None:
-            raise ValueError("Teacher pixels are accepted only on an unprepared foresight QA forward")
+            raise ValueError("Teacher pixels are accepted only on an unprepared foresight text forward")
 
         if use_object_proposals:
             if object_features is None:

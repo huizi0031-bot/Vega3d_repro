@@ -1526,7 +1526,7 @@ class LazySupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         if getattr(self.data_args, "foresight_enabled", False):
-            # A broken teacher pair must fail, never silently select another QA row.
+            # A broken teacher pair must fail, never silently select another training row.
             return self._get_item(i)
         # TODO: define number of retries somewhere else
         num_base_retries = 3
@@ -1670,7 +1670,7 @@ class LazySupervisedDataset(Dataset):
         if getattr(self.data_args, "foresight_video_loss_weight", 0.) > 0:
             from llava.train.foresight_data import load_teacher_pixels
             if self.data_args.frame_sampling_strategy != "uniform":
-                raise ValueError("Foresight pilot preserves the recorded uniform QA observation selection")
+                raise ValueError("Foresight video supervision requires the recorded uniform observation selection")
             selected = self.video_processor.sample_frame_files(
                 self.list_data_dict[i]["video"], force_sample=self.data_args.force_sample,
                 frames_upbound=self.data_args.frames_upbound)
@@ -2082,9 +2082,9 @@ def train(attn_implementation=None):
         raise ValueError("Video supervision requires foresight_enabled")
     if model_args.foresight_enabled:
         if training_args.lora_enable or training_args.bits != 16:
-            raise ValueError("Foresight pilot currently supports full-precision-parameter fine-tuning only")
+            raise ValueError("Foresight currently supports non-quantized full-parameter fine-tuning only")
         if model_args.ground_head_type is not None:
-            raise ValueError("ScanQA foresight pilot must use ground_head_type=None")
+            raise ValueError("Foresight object-proposal grounding is not implemented; use ground_head_type=None")
     for name in ModelArguments.__dataclass_fields__:
         if name.startswith("foresight_"):
             setattr(data_args, name, getattr(model_args, name))
