@@ -1,153 +1,188 @@
 # VEGA-3D · Qwen3.5 / Wan2.2
 
-在 VEGA-3D 上使用 Qwen3.5-2B 语言骨干与 Wan2.2-TI2V-5B 生成式特征，保留 SigLIP、特征融合、3D 位置编码及原物体定位头。foresight 是共享的可选训练方法，数据集通过清单配置，不为每个任务复制训练入口。
+本项目在 VEGA-3D 中加入 foresight queries，用冻结视频生成模型的监督训练 VLM 表示。当前要验证：在相同数据和训练设置下，视频生成先验能否提升空间理解能力。理解实验完成后，再考虑扩展到动作任务。
 
-## 目录
+三组实验共用同一训练入口和数据清单：
 
-```text
-llava/
-  model/                         # 模型、融合、3D 编码与 foresight
-  train/                         # 数据集、collator、Trainer
-  eval/                          # 任务推理和指标
-  video_utils.py                 # 场景资产及离线特征读取
-scripts/
-  3d/preprocessing/              # 各数据集转换和 foresight 配帧
-  3d/train/                      # 统一训练入口、参数与数据检查
-  3d/eval/                       # 场景问答生成及原版任务入口
-  visualization/                 # Wan 特征可视化
-  zero3.json
-configs/3d/                      # 基线和 foresight 方法配置
-wan_offline_tools/               # 生成式特征提取、训练兼容入口
-environment/qwen35/              # 完整依赖、离线安装、环境检查
-tests/                           # CPU 测试
-docs/                            # 方法和实验记录
-data/                            # 数据、权重、特征；不进 Git
-```
+| 模式 | Queries | 视频辅助监督 | 比较目的 |
+|---|---|---|---|
+| `baseline` | 无 | 无 | 原模型基线 |
+| `queries` | 有 | 无 | 检查增加 queries 本身的作用 |
+| `video` | 有 | 有 | 检查视频监督是否带来额外提升 |
 
-## 已做的准备
+三组均保留原有 Wan 观测特征和 3D 编码，实验只改变 queries 和视频辅助监督。
 
-| 内容 | 状态 |
-|---|---|
-| 语言模型 | Qwen3.5 原生语言骨干、tokenizer、聊天模板；视觉塔仍是 SigLIP |
-| 生成式特征 | Wan2.2 离线特征为 3072 维，与语义特征融合并加入 3D 位置编码 |
-| 本地权重 | Qwen3.5-2B-Language、SigLIP SO400M、Wan2.2 DiT / VAE 已准备 |
-| 方法 | 32 个 queries、条件投影、冻结 Wan / VAE、flow loss、文本损失、保存与恢复 |
-| 数据实例 | ScanQA 400 条训练问答 / 20 场景，100 条验证问答 / 5 独立场景 |
-| 观测与监督 | 32 帧观测；教师片段为观测锚点加 4 帧留出视角；清单已固定 |
-| 离线特征 | 20 个训练场景齐备；5 个验证场景待补 |
-| Python 环境 | 离线包准备完成，独立环境重建和 CPU 检查通过，见 [环境记录](docs/environment_validation.md) |
-| GPU 记录 | 重构前在 8709 双卡完成 2 个优化器步骤并保存；未完成完整训练或效果评测 |
-| 原版其他任务 | 数据转换、混合清单、推理和指标代码保留；新骨干适配待验证 |
+## 实现与进展
 
-## 方法
+语言骨干为 Qwen3.5-2B，语义视觉塔保留 SigLIP SO400M，生成式观测特征来自 Wan2.2-TI2V-5B。RGB 特征与离线 Wan 特征融合，结合深度和相机参数生成 3D 位置编码后输入 VLM。
 
 ```text
-RGB → SigLIP ───────────────┐
-Wan2.2 离线特征 ───────────┴→ 融合 + 3D 编码 → Qwen3.5 → 文本回答 → 文本损失
-                                              └→ foresight Z → 条件投影 ─┐
-留出视角片段 → 冻结 VAE → 加噪 latent ─────────────────────────────────┴→ 冻结 Wan
-                                                                         ↓
-                                                              velocity → flow loss
+场景观测 → SigLIP / 离线 Wan 特征 → 融合与 3D 编码 → Qwen（问题 + queries）→ 答案
+                                                        ↓
+                                                   Z → 条件投影
+                                                        ↓
+监督片段 → 冻结 VAE → 加噪 latent ───────────────────→ 冻结 Wan → velocity
 ```
 
-默认 Z 为 `32×2048`，条件为 `32×4096`，教师视频为 5 帧 `256×320`。损失为 `L_text + 0.1 L_video`。教师参数冻结，但保留对条件输入的梯度。推理不加载新增视频教师；原有离线 Wan 观测特征仍需提供。
+32 个 queries 在 Qwen 中得到 `Z [B,32,2048]`，投影为 `[B,32,4096]` 的 Wan 条件。教师输入是 1 帧观测锚点和 4 帧留出视角，分辨率为 `256×320`。总损失为 `L_text + 0.1 × L_video`。Wan / VAE 参数冻结，视频损失通过条件分支回传到投影、queries 和相关可训练模块。queries 位于答案前，不能读取答案内容。
 
-当前目标是静态场景的留出视角预测，不能称为严格未来动态预测。当前 foresight 分支支持单轮文本生成，定位 proposal 分支、DPO 和机器人动作头尚未接通。场景资产仍使用 ScanNet / EmbodiedScan 的布局；数据集名称不受限，新数据仍需满足该读取接口。方法、张量与数据契约见 [foresight](docs/foresight.md)。
+推理保留 queries，不加载视频监督教师；原有离线 Wan 观测特征仍需提供。当前监督是静态扫描的留出视角预测。
 
-## Python 环境
+已完成模型接入、三种训练模式、数据检查、保存与恢复接口，以及 CPU 回归检查。foresight 链路已在双卡上完成两个优化器步骤并正常保存；通用入口已通过三种模式的真实样本加载。尚未完成完整训练、三组对照和验证集评测，目前没有理解能力提升的结果。
 
-Python 3.10.18、Torch 2.6.0 / CUDA 12.4、Transformers 5.3.0、DeepSpeed 0.16.9、Accelerate 1.12.0、Diffusers 0.30.3，使用 SDPA。`requirements.txt` 引用 `environment/qwen35/requirements.lock.txt` 的完整依赖清单。
+当前示例为 ScanQA：400 条训练问答、20 个场景；100 条验证问答、5 个独立场景。训练特征齐备，验证特征尚缺 5 个场景。该规模用于试跑，不作为完整效果实验。
 
-8709 原实验环境：
+## 1. 获取代码与资源
+
+以下以 `/data/zhdu/vega3d_repro` 为工作目录，路径可调整。已有仓库时直接进入代码目录。
 
 ```bash
-source /data/zhdu/vega3d_repro/envs/vega3d-qwen35/bin/activate
+PROJECT_ROOT=/data/zhdu/vega3d_repro
+REPO_ROOT="$PROJECT_ROOT/code/VEGA-3D-qwen3.5-wan2.2"
+mkdir -p "$PROJECT_ROOT/code"
+git clone -b experiment/qwen35-wan22 https://github.com/huizi0031-bot/Vega3d_repro.git "$REPO_ROOT"
+cd "$REPO_ROOT"
 ```
 
-公司服务器复制代码、数据、权重和离线包后，按实际位置替换路径：
-
-```bash
-bash environment/qwen35/install.sh \
-  --prefix /path/to/envs/vega3d-qwen35 \
-  --bundle /path/to/environment_bundle/qwen35 \
-  --test --check-data
-source /path/to/envs/vega3d-qwen35/reproduction/activate.sh
-```
-
-离线包位于 8709 的 `/data/zhdu/vega3d_repro/environment_bundle/qwen35/`。安装说明见 [environment](environment/qwen35/README.md)。仅检查 Python 环境可省略 `--check-data`；数据检查使用默认方法配置。CUDA 驱动与运行时编译工具链需由目标机器提供。
-
-## 数据与配置
+Git 仅包含代码和环境规范。数据、模型权重、场景特征和离线安装包需要单独复制。当前配置要求以下路径：
 
 ```text
 data/
-  models/{Qwen3.5-2B-Language,siglip-so400m-patch14-384,Wan2.2-TI2V-5B}/
-  embodiedscan/                  # 场景元数据
-  metadata/                     # 框、采样等信息
-  processed/                    # 原任务标注
-  scanqa_foresight/              # 现有实验清单，换任务可另设目录
-    train_paired.jsonl
-    train_original.json
+  models/
+    Qwen3.5-2B-Language/           # 已导出的语言权重和 tokenizer
+    siglip-so400m-patch14-384/     # 语义视觉权重
+    Wan2.2-TI2V-5B/               # DiT、VAE 等原模型文件
+  scanqa_foresight/
+    train_paired.jsonl            # 三组实验共用
     val_original.json
-    scene_pairs.json
+  embodiedscan/
+    embodiedscan_infos_train.pkl
+    embodiedscan_infos_val.pkl
+    embodiedscan_infos_test.pkl
+  metadata/
+    scannet_train_gt_box.json
+    scannet_val_pred_box.json
   scannet/
-    posed_images/<scene>/       # RGB、深度、位姿、内参
-    <feature_id>/<scene>/wan22_ti2v.pt
+    posed_images/<scene>/        # RGB .jpg、深度 .png、位姿 .txt、内参
+    wan22_ti2v_offline_uniform32_1280x704_t300_b20_s42_v1/
+      <scene>/wan22_ti2v.pt
 ```
 
-现有 `data/scanqa_foresight` 是软链接，目标为 `/data/zhdu/vega3d_repro/experiments/scanqa_foresight_pilot_20261020_v1/data`。交接时需复制真实目标，不能删除整个 `experiments`。缓存 ID 和帧列表保持一致，不直接改名。
+特征提取还需要 `llava/model/multimodal_generative_encoder/wan22_prompt_embedding.pt`，该缓存不在 Git 中，应一并复制。已有观测特征时，训练不调用特征提取工具。
 
-`configs/3d/foresight.yaml` 默认指向这些已准备的数据。换任务修改 `data.train`、可选的 `data.validation`，其余模型和优化参数按需要调整。训练数据支持 JSON、JSONL 和多数据集 YAML。`conversations` 中的 `gpt` 是标准答案角色名，不表示答案由 GPT 生成。
+迁移软链接时复制其实际文件，或在新机器重新建立链接。场景元数据中的完整帧列表要保留；实际读取的 RGB、深度、位姿和教师目标图像必须齐全，观测帧顺序必须与缓存一致。当前数据清单无需重新生成，`scene_pairs.json` 仅作配帧汇总。
 
-## 训练
+## 2. 安装 Python 环境
 
-所有命令在仓库根目录执行。统一入口为 `scripts/3d/train/train_scene_understanding.py`。
+环境为 Linux x86_64、Python 3.10.18、Torch 2.6.0 / CUDA 12.4、Transformers 5.3.0、DeepSpeed 0.16.9，使用 SDPA。环境与数据集名称无关。
 
-| `--mode` | 设置 |
-|---|---|
-| `baseline` | 原模型，不加 queries 和视频监督 |
-| `queries` | 加 queries，只用文本损失 |
-| `video` | 加 queries，同时使用文本损失与视频 flow loss |
-
-三种模式可用同一份带配帧的数据，关闭视频监督时忽略配帧字段。无需为每个任务新建启动器。
+将离线包放到 `$PROJECT_ROOT/environment_bundle/qwen35/`，其中应有 `python-runtime.tar.gz`、`manifest.json` 和 `wheelhouse/`。在仓库根目录安装到一个尚不存在的目录：
 
 ```bash
-# CPU 数据和真实样本检查
-python scripts/3d/train/train_scene_understanding.py --mode video --check-data
-python scripts/3d/train/train_scene_understanding.py --mode video --check-loader
+bash environment/qwen35/install.sh \
+  --prefix "$PROJECT_ROOT/envs/vega3d-qwen35" \
+  --bundle "$PROJECT_ROOT/environment_bundle/qwen35"
 
-# 预览双卡两步命令，不启动训练
-python scripts/3d/train/train_scene_understanding.py --mode video --gpus 2,3 --run-name foresight-test --max-steps 2
-
-# 用户决定训练时，另加 --execute；正式训练不传 --max-steps 2
-# 换同格式任务：--data-path /path/to/train.jsonl
-# 对照：--mode baseline 或 --mode queries
+source "$PROJECT_ROOT/envs/vega3d-qwen35/reproduction/activate.sh"
+python -m pip check
+nvidia-smi
+python -c 'import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())'
 ```
 
-批量默认为每卡 1、全局 8，两卡累积 4 次；训练 1 epoch。通用多任务基线使用 `--config configs/3d/qwen35_wan22.yaml`，默认读取原 `multi.yaml` 并保留定位头。foresight 与定位头尚未接通，入口拒绝不支持的组合。检查范围、恢复规则见 [训练说明](scripts/3d/train/README.md)。
+每个新终端都需要激活环境。已有原实验环境时，使用其 `bin/activate`，不重复安装。安装包不包含 NVIDIA 驱动和系统编译工具；DeepSpeed 运行时编译需要可用的 C++ / CUDA 工具链。完整说明见 [环境说明](environment/qwen35/README.md)。
 
-## 数据准备与评估
+## 3. 检查数据与配置
 
-`prepare_foresight_data.py` 从指定的训练 / 验证问答、观测缓存及 ScanNet 帧中准备留出片段，路径、场景数和采样参数由命令指定，详见 [方法与数据](docs/foresight.md)。已有清单可继续使用，无需重新生成。
+以下命令在仓库根目录执行，使用 [foresight.yaml](configs/3d/foresight.yaml)：
 
-验证特征检查也由配置的数据清单驱动：
+```bash
+python scripts/3d/train/train_scene_understanding.py --mode video --check-data
+python scripts/3d/train/train_scene_understanding.py --mode video --check-loader
+```
+
+`--check-data` 检查标注、权重、训练缓存是否存在，以及配帧和图像文件；`--check-loader` 额外读取一条真实样本，核对实际选帧、缓存和教师输入。video 模式的教师张量应为 `[1,3,5,256,320]`，检查输出应包含 `cuda_initialized: false`、`optimizer_steps: 0`。单样本检查不等于逐一验证全部缓存内容。
+
+换同类文本任务时，修改 `data.train`、`data.validation`，并按 [数据格式](docs/foresight.md) 准备样本。支持 JSON、JSONL 和多数据集 YAML。当前读取层仍要求 ScanNet / EmbodiedScan 场景资产，单独的 MP4 加问答不能直接替代 RGB-D 和相机数据。foresight 尚未接入定位 proposal 分支和动作头。
+
+## 4. 两步试跑与训练
+
+下例使用物理 GPU `2,3`，按实际空闲卡调整。先预览命令：
+
+```bash
+python scripts/3d/train/train_scene_understanding.py \
+  --mode video --gpus 2,3 --run-name foresight-smoke --max-steps 2
+```
+
+确认参数后加 `--execute`，执行两个优化器步骤：
+
+```bash
+python scripts/3d/train/train_scene_understanding.py \
+  --mode video --gpus 2,3 --run-name foresight-smoke --max-steps 2 --execute
+```
+
+试跑正常退出并生成 checkpoint 后，以新名称分别训练三组。以下命令使用相同配置、初始权重和数据；每组默认训练 1 epoch，按顺序执行：
+
+```bash
+python scripts/3d/train/train_scene_understanding.py --mode baseline --gpus 2,3 --run-name baseline --execute
+python scripts/3d/train/train_scene_understanding.py --mode queries  --gpus 2,3 --run-name queries  --execute
+python scripts/3d/train/train_scene_understanding.py --mode video    --gpus 2,3 --run-name foresight --execute
+```
+
+默认参数如下，调整实验时修改配置，并保持三组的公共设置一致：
+
+| 参数 | 当前值 |
+|---|---|
+| 每卡 batch / 全局 batch | 1 / 8；两卡时累积 4 次 |
+| 训练长度 | 1 epoch；当前 400 条数据对应约 50 个优化器步骤 |
+| 学习率 | 常规模块 `1e-5`；视觉塔 `2e-6`；foresight `1e-4` |
+| 优化器 / 调度 | AdamW；cosine；warmup ratio `0.03` |
+| 精度与显存设置 | BF16、SDPA、梯度检查点、ZeRO-3 |
+| 上下文 / 随机种子 | 32768 / 42 |
+| 保存间隔 | 每 50 步，训练结束保存完整 checkpoint |
+
+全局 batch 必须能被 `GPU 数 × 每卡 batch` 整除。每个进程单独持有冻结 Wan 教师，教师不由 ZeRO-3 分片。
+
+输出位于 `checkpoints/<run-name>/`，配置、数据和源码哈希、包版本、日志、退出状态保存在其中的 `foresight_record/`。同名目录不会直接覆盖。中断恢复在原命令后加 `--resume`，要求有周期 checkpoint，且配置、数据、源码、进程数和训练参数保持一致。两步试跑设置不同于完整训练，正式训练使用新名称从相同初始权重开始。
+
+## 5. 补齐验证特征与评估
+
+当前验证清单缺少 `scene0011_00`、`scene0064_00`、`scene0084_00`、`scene0249_00`、`scene0377_00` 的离线特征。训练检查会报告这些场景，训练本身不依赖其缓存；推理前必须补齐。
 
 ```bash
 python wan_offline_tools/extract_scene_features.py --split validation --check-only
-# 提取需用户选空卡后另加 --gpu 0 --execute
+python wan_offline_tools/extract_scene_features.py --split validation --gpu 2 --execute
 ```
 
-当前缺 `scene0011_00`、`scene0064_00`、`scene0084_00`、`scene0249_00`、`scene0377_00`；缺失时检查退出码为 1。
+检查发现缺失时退出码为 1。提取会核对指定 GPU 是否空闲，沿用已有缓存的协议；先确认 RGB-D、相机文件、Wan 权重和空文本条件缓存已复制齐全。
 
-文本回答生成共用入口，计分仍按任务分别执行：
+以完整 foresight 训练的输出为例，在一张空闲卡上生成回答并计分：
 
 ```bash
-python scripts/3d/eval/eval_scene_qa.py --model-path checkpoints/scene-video --question-file data/scanqa_foresight/val_original.json --answer-file results/answers.jsonl
-# 实际推理另加 --gpu 0 --execute
-python llava/eval/eval_scanqa.py --input-file results/answers.jsonl
+python scripts/3d/eval/eval_scene_qa.py \
+  --model-path checkpoints/foresight \
+  --question-file data/scanqa_foresight/val_original.json \
+  --answer-file results/foresight.jsonl --gpu 2 --execute
+
+python llava/eval/eval_scanqa.py --input-file results/foresight.jsonl
 ```
 
-ScanQA 计分另需原始多参考答案标注；METEOR 需要 Java。其他任务的原版转换和评估保留于 `scripts/3d/preprocessing/` 与 `llava/eval/`，其聊天模板、Ray 调度和定位分支尚需适配，见 [评估说明](scripts/3d/eval/README.md)。
+ScanQA 计分另需 `data/processed/scanqa_val_llava_style.json` 中的多参考答案，METEOR 需要 Java。baseline 和 queries 使用各自模型目录及新的输出文件，验证数据与解码设置一致；已有回答文件不会覆盖。当前训练不自动执行验证。
 
-离线特征可用 `scripts/visualization/wan22_features.py` 绘制，见 [可视化说明](scripts/visualization/README.md)。相似度图不能单独证明几何对应正确。
+比较三组的独立验证指标，重点看 `video` 相比 `queries` 是否有额外收益。训练损失下降或两步试跑成功，不能替代理解能力的效果结果。
 
-重构前试跑数值见 [GPU 记录](docs/foresight_gpu_smoke_20261020.md)。没有完整训练、三组对照或验证指标，不据此判断方法效果。来源与许可证见 [THIRD_PARTY](THIRD_PARTY.md)。
+## 代码入口
+
+| 位置 | 内容 |
+|---|---|
+| `llava/model/`、`llava/train/` | 模型、foresight、数据加载与训练 |
+| `scripts/3d/train/` | 统一训练入口、参数与检查 |
+| `scripts/3d/preprocessing/` | 数据转换、foresight 配帧与模型资源导出 |
+| `scripts/3d/eval/`、`llava/eval/` | 回答生成和任务计分 |
+| `scripts/visualization/` | Wan 观测特征可视化 |
+| `wan_offline_tools/` | 特征提取、模型准备和训练兼容接口 |
+| `environment/qwen35/` | 环境规范、离线安装与检查 |
+| `configs/3d/`、`docs/foresight.md` | 配置与方法细节 |
+
+`qwen35_wan22.yaml` 保留原多任务基线配置，默认关闭 foresight、启用定位头，与本次三组理解实验使用的 `foresight.yaml` 分开。其他任务的原版转换和评估代码保留，新骨干上的适配与验证尚未全部完成。
+
+来源和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
